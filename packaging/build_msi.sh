@@ -182,10 +182,17 @@ if (Get-Command "wix" -ErrorAction SilentlyContinue) {
 }
 EOF
 
-# 6. Check for Linux native compiler: wixl (from msitools)
-if command -v wixl >/dev/null 2>&1; then
-    echo "==> Native Linux WiX compiler 'wixl' detected. Compiling MSI..."
-    (cd "$STAGING_DIR" && wixl -v -o "$OUTPUT_DIR/$MSI_NAME" optolithium.wxs)
+# 6. Check for WiX compiler: bundled wixl, system wixl, or Windows wix
+WIXL_BIN=""
+if [ -x "$REPO_DIR/packaging/tools/wixl" ]; then
+    WIXL_BIN="$REPO_DIR/packaging/tools/wixl"
+elif command -v wixl >/dev/null 2>&1; then
+    WIXL_BIN="$(command -v wixl)"
+fi
+
+if [ -n "$WIXL_BIN" ]; then
+    echo "==> Native WiX compiler 'wixl' detected ($WIXL_BIN). Compiling MSI..."
+    (cd "$STAGING_DIR" && "$WIXL_BIN" -v -o "$OUTPUT_DIR/$MSI_NAME" optolithium.wxs)
     echo "=========================================================="
     echo " MSI Build Complete!"
     echo " Package generated: $OUTPUT_DIR/$MSI_NAME"

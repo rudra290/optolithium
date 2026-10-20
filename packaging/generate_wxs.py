@@ -58,7 +58,7 @@ def build_wxs(staging_dir, version, output_wxs):
             for f in files:
                 rel_file = os.path.relpath(os.path.join(current_dir, f), staging_dir).replace("\\", "/")
                 file_id = sanitize_id("fil", rel_file)
-                source_path = rel_file.replace("/", "\\")
+                source_path = rel_file.replace("\\", "/")
                 lines.append(f'{indent}  <File Id="{file_id}" Source="{source_path}" KeyPath="{"yes" if f == files[0] else "no"}" />')
             lines.append(f'{indent}</Component>')
 
@@ -131,7 +131,7 @@ def build_wxs(staging_dir, version, output_wxs):
                   Description="Uninstalls Optolithium"
                   Target="[SystemFolder]msiexec.exe"
                   Arguments="/x [ProductCode]" />
-        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RemoveFolder Id="CleanUpShortCut" On="uninstall" />
         <RegistryValue Root="HKCU" Key="Software\\Optolithium" Name="installed" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </DirectoryRef>
