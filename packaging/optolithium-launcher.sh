@@ -1,32 +1,40 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Optolithium Application Launcher
+# Optolithium Standalone Application Launcher (Zero-Dependency)
 # ==============================================================================
 set -e
 
 INSTALL_DIR="/opt/optolithium"
 APP_DIR="$INSTALL_DIR/app"
+LIB_DIR="$INSTALL_DIR/lib"
+VENV_DIR="$INSTALL_DIR/venv"
 
-# 1. Check for bundled virtual environment
-if [ -x "$INSTALL_DIR/venv/bin/python" ]; then
-    PYTHON_BIN="$INSTALL_DIR/venv/bin/python"
-# 2. Check for user-specified virtual environment
-elif [ -n "$OPTOLITHIUM_VENV" ] && [ -x "$OPTOLITHIUM_VENV/bin/python" ]; then
-    PYTHON_BIN="$OPTOLITHIUM_VENV/bin/python"
-# 3. Check for existing user cache virtual environment
-elif [ -x "${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv/bin/python" ]; then
-    PYTHON_BIN="${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv/bin/python"
-# 4. Fallback: Automatically bootstrap user virtual environment
-else
-    USER_VENV="${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv"
-    echo "Optolithium Python environment not found. Initializing in $USER_VENV..."
-    python3 -m venv "$USER_VENV"
-    "$USER_VENV/bin/pip" install --upgrade pip
-    "$USER_VENV/bin/pip" install PyQt5 "numpy<2" scipy matplotlib "sqlalchemy<2" psutil python-magic python-gdsii bson
-    PYTHON_BIN="$USER_VENV/bin/python"
+# 1. Add bundled native shared libraries (e.g. libfftw3) to library path
+if [ -d "$LIB_DIR" ]; then
+    export LD_LIBRARY_PATH="$LIB_DIR:${LD_LIBRARY_PATH:-}"
 fi
 
-export PYTHONPATH="$APP_DIR:$PYTHONPATH"
+# 2. Determine Python runtime
+if [ -x "$VENV_DIR/bin/python" ]; then
+    PYTHON_BIN="$VENV_DIR/bin/python"
+elif [ -n "$OPTOLITHIUM_VENV" ] && [ -x "$OPTOLITHIUM_VENV/bin/python" ]; then
+    PYTHON_BIN="$OPTOLITHIUM_VENV/bin/python"
+elif [ -x "${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv/bin/python" ]; then
+    PYTHON_BIN="${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+else
+    echo "Error: Python 3 not found on this system." >&2
+    exit 1
+fi
+
+# 3. Add bundled site-packages and app directory to PYTHONPATH
+for sp in "$VENV_DIR"/lib/python*/site-packages; do
+    if [ -d "$sp" ]; then
+        export PYTHONPATH="$sp:${PYTHONPATH:-}"
+    fi
+done
+
+export PYTHONPATH="$APP_DIR:${PYTHONPATH:-}"
 cd "$APP_DIR"
 exec "$PYTHON_BIN" "$APP_DIR/main.py" "$@"
-

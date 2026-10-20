@@ -17,30 +17,31 @@ This guide explains how to generate installation packages for Optolithium across
 
 ---
 
-## 2. Quick Start: One-Click Build
+## 2. Quick Start: Zero-Dependency Build
 
-To build Linux packages (`.rpm` and `.deb`) and their repositories:
+By default, all builds produce **fully self-contained, zero-dependency** packages. All Python dependencies (`PyQt5`, `numpy`, `scipy`, `matplotlib`, `SQLAlchemy`, `psutil`, `bson`, `python-gdsii`, `python-magic`) and native C++ simulation libraries (including `libfftw3`) are bundled inside the package so target machines require **zero pip installs, zero external development packages, and zero internet connection**.
 
 ```bash
+# Build standalone Linux packages (.rpm and .deb) + repositories:
 ./build_packages.sh
 ```
 
-### Targeted Platform Builds:
+### Build Options:
 ```bash
-# Build Linux packages + Windows MSI
+# Build all platforms (.rpm, .deb, and Windows .msi staging/installer):
 ./build_packages.sh --all
 
-# Build only Windows .msi installer
-./build_packages.sh --msi-only
-
-# Build only RPM & DNF repo
+# Build only standalone RPM & DNF repo:
 ./build_packages.sh --rpm-only
 
-# Build only DEB & APT repo
+# Build only standalone DEB & APT repo:
 ./build_packages.sh --deb-only
 
-# Bundle Python virtual environment for offline / air-gapped systems
-./build_packages.sh --bundle-venv
+# Build only Windows .msi installer:
+./build_packages.sh --msi-only
+
+# Lightweight slim build (relies on host Python virtual environment):
+./build_packages.sh --slim
 ```
 
 ---

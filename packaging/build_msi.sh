@@ -213,3 +213,4 @@ else
     echo "       .\\build_msi_v4.bat    (WiX Toolset v4/v5 dotnet tool)"
     echo "=========================================================="
 fi
+

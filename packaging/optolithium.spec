@@ -7,22 +7,32 @@ URL:            https://bitbucket.org/gladkikhalexei/lithography
 Group:          Applications/Engineering
 BuildArch:      x86_64
 
-# Prevent RPM post-processing from corrupting Python virtualenv or shared libraries
-%global debug_package %{nil}
-%global __brp_python_bytecompile %{nil}
-%global __brp_mangle_shebangs %{nil}
-%global __strip /bin/true
-%define _build_id_links none
+# Turn off automatic dependency scanning for bundled private libraries
+AutoReqProv:    no
 
-Requires:       python3 >= 3.10
-Requires:       fftw-libs
-Requires:       libstdc++
+# Prevent RPM post-processing from failing on bundled wheels and libraries
+%global debug_package %{nil}
+%global __brp_check_rpaths %{nil}
+%global __brp_mangle_shebangs %{nil}
+%global __brp_python_bytecompile %{nil}
+%global __brp_python_rpm_in_distinfo %{nil}
+%global __brp_strip %{nil}
+%global __brp_strip_lto %{nil}
+%global __brp_strip_comment_note %{nil}
+%global __brp_strip_static_archive %{nil}
+%define _build_id_links none
+%define __check_files %{nil}
+%define _unpackaged_files_terminate_build 0
+
+Requires:       /bin/sh
+Requires:       /usr/bin/env
 
 %description
 Optolithium is an optical lithography simulation and modeling software suite.
 It provides advanced physical optical simulations, partial coherent imaging,
 resist exposure, post-exposure bake (PEB), development rate models, and
 rigorous metrology analysis.
+This package is fully self-contained with zero runtime dependencies.
 
 %install
 mkdir -p %{buildroot}
@@ -53,5 +63,4 @@ fi
 
 %changelog
 * Tue Oct 20 2026 Rudra <rudra@local> - 0.3.0-1
-- Modernized Linux release with RPM and DNF package management support
-
+- Fully self-contained zero-dependency release
