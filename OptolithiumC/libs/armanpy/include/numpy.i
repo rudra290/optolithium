@@ -12,6 +12,27 @@
 #include "stdio.h"
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include <numpy/arrayobject.h>
+
+#if PY_MAJOR_VERSION >= 3
+#ifndef PyInt_Check
+#define PyInt_Check(op) PyLong_Check(op)
+#endif
+#ifndef PyInt_AsLong
+#define PyInt_AsLong(op) PyLong_AsLong(op)
+#endif
+#ifndef PyString_Check
+#define PyString_Check(op) PyUnicode_Check(op)
+#endif
+#ifndef PyString_AsString
+#define PyString_AsString(op) PyUnicode_AsUTF8(op)
+#endif
+#ifndef PyString_FromString
+#define PyString_FromString(op) PyUnicode_FromString(op)
+#endif
+#ifndef PyString_FromStringAndSize
+#define PyString_FromStringAndSize(op, sz) PyUnicode_FromStringAndSize(op, sz)
+#endif
+#endif
 %}
 
 /**********************************************************************/
@@ -66,7 +87,7 @@
 %#endif
 %#define array_is_contiguous(a) (PyArray_ISCONTIGUOUS((PyArrayObject*)a))
 %#define array_is_native(a)     (PyArray_ISNOTSWAPPED((PyArrayObject*)a))
-%#define array_is_fortran(a)    (PyArray_ISFORTRAN((PyArrayObject*)a))
+%#define array_is_fortran(a)    (PyArray_CHKFLAGS((PyArrayObject*)a, NPY_ARRAY_F_CONTIGUOUS))
 }
 
 /**********************************************************************/

@@ -38,6 +38,17 @@
     static PyObject* ctypes_module_cast;
     static PyObject* ctypes_module_c_void_p;
 
+#if PY_MAJOR_VERSION >= 3
+#define PyInt_AsUnsignedLongLongMask PyLong_AsUnsignedLongLongMask
+#define PyString_AsString(op) PyUnicode_AsUTF8(op)
+#endif
+
+#ifdef __cplusplus
+static inline PyObject* SWIG_Python_AppendOutput(PyObject* result, PyObject* obj) {
+    return SWIG_Python_AppendOutput(result, obj, 0);
+}
+#endif
+
     int load_ctypes_module(void) {
         ctypes_module = PyImport_ImportModule("ctypes");
         if (!ctypes_module) {
@@ -63,11 +74,7 @@
 
 %init {
     if (load_ctypes_module() == -1) {
-        # if PY_VERSION_HEX >= 0x03000000
-            return NULL;
-        # else
-            return;
-        # endif
+        return -1;
     }
 }
 
@@ -97,7 +104,8 @@
                 if (errvalue != nullptr) {
                     PyObject *str = PyObject_Str(errvalue);
                     std::string header_string("PyLong_AsUnsignedLongLong: ");
-                    std::string message_string(PyString_AsString(str));
+                    const char *cstr = PyString_AsString(str);
+                    std::string message_string(cstr ? cstr : "");
                     SWIG_exception_fail(SWIG_ERROR, (header_string + message_string).c_str());
                     Py_DECREF(str);
                 }
@@ -187,7 +195,7 @@
 %template(PolygonsArray) std::vector<std::shared_ptr<geometry::PolygonGeometry> >;
 %template(Points2dArray) std::vector<std::shared_ptr<geometry::Point2d> >;
 %template(Points3dArray) std::vector<std::shared_ptr<geometry::Point3d> >;
-%template(RegionsArray) std::vector<std::shared_ptr<Region> >;
+%template(RegionsArray) std::vector<std::shared_ptr<oplc::Region> >;
 %template(DoubleArray) std::vector<double>;
 
 /* ---------------------------------------------------------------------------- */
@@ -256,45 +264,32 @@ namespace geometry {
         %rename(__len__) length;
         %rename(__repr__) str;
 
-        %rename(_get_a) a() const;
-        %rename(_get_b) b() const;
-        %rename(_get_c) c() const;
+        %rename(_get_a) a;
+        %rename(_get_b) b;
+        %rename(_get_c) c;
 
         %pythoncode %{
-            __swig_getmethods__["a"] = _get_a
-            __swig_getmethods__["b"] = _get_b
-            __swig_getmethods__["c"] = _get_c
-
-            if _newclass: 
-                a = property(_get_a)
-                b = property(_get_b)
-                c = property(_get_c)
+            a = property(_get_a)
+            b = property(_get_b)
+            c = property(_get_c)
         %}
     }
 
     %extend Surface3d {
-        %rename(_get_points) points() const;
-        %rename(_get_triangles) triangles() const;
+        %rename(_get_points) points;
+        %rename(_get_triangles) triangles;
 
-        %rename(_get_x) x() const;
-        %rename(_get_y) y() const;
-        %rename(_get_z) z() const;
+        %rename(_get_x) x;
+        %rename(_get_y) y;
+        %rename(_get_z) z;
 
         %pythoncode %{
-            __swig_getmethods__["points"] = _get_points
-            __swig_getmethods__["triangles"] = _get_triangles
+            points = property(_get_points)
+            triangles = property(_get_triangles)
 
-            __swig_getmethods__["x"] = _get_x
-            __swig_getmethods__["y"] = _get_y
-            __swig_getmethods__["z"] = _get_z
-
-            if _newclass: 
-                points = property(_get_points)
-                triangles = property(_get_triangles)
-
-                x = property(_get_x)
-                y = property(_get_y)
-                z = property(_get_z)
+            x = property(_get_x)
+            y = property(_get_y)
+            z = property(_get_z)
         %}
     }
 
@@ -327,7 +322,7 @@ namespace geometry {
 
         %pythoncode %{
             def __iter__(self):
-                for k in xrange(len(self)):
+                for k in range(len(self)):
                     yield self[k]
         %}
     }
@@ -379,42 +374,30 @@ namespace oplc {
         %ignore kx(uint32_t) const;
         %ignore ky(uint32_t) const;
 
-        %rename(_get_values) values() const;
-        %rename(_get_cxy) cxy() const;
+        %rename(_get_values) values;
+        %rename(_get_cxy) cxy;
         
-        %rename(_get_cx) cx() const;
-        %rename(_get_cy) cy() const;
+        %rename(_get_cx) cx;
+        %rename(_get_cy) cy;
 
-        %rename(_get_frqx) frqx() const;
-        %rename(_get_frqy) frqy() const;
+        %rename(_get_frqx) frqx;
+        %rename(_get_frqy) frqy;
         
-        %rename(_get_kx) kx() const;
-        %rename(_get_ky) ky() const;
+        %rename(_get_kx) kx;
+        %rename(_get_ky) ky;
         
         %pythoncode %{
-            __swig_getmethods__["values"] = _get_values
-            __swig_getmethods__["cxy"] = _get_cxy
-            
-            __swig_getmethods__["cx"] = _get_cx
-            __swig_getmethods__["cy"] = _get_cy
+            values = property(_get_values)
+            cxy = property(_get_cxy)
 
-            __swig_getmethods__["frqx"] = _get_frqx
-            __swig_getmethods__["frqy"] = _get_frqy
+            cx = property(_get_cx)
+            cy = property(_get_cy)
             
-            __swig_getmethods__["kx"] = _get_kx
-            __swig_getmethods__["ky"] = _get_ky
-            if _newclass: 
-                values = property(_get_values)
-                cxy = property(_get_cxy)
-
-                cx = property(_get_cx)
-                cy = property(_get_cy)
-                
-                frqx = property(_get_frqx)
-                frqy = property(_get_frqy)
-                
-                kx = property(_get_kx)
-                ky = property(_get_ky)
+            frqx = property(_get_frqx)
+            frqy = property(_get_frqy)
+            
+            kx = property(_get_kx)
+            ky = property(_get_ky)
         %}
     }
 
@@ -424,54 +407,41 @@ namespace oplc {
         %ignore y(uint32_t) const;
         %ignore z(uint32_t) const;
 
-        %rename(_get_type) type() const;
-        %rename(_get_x) x() const;
-        %rename(_get_y) y() const;
-        %rename(_get_z) z() const;
-        %rename(_has_x) has_x() const;
-        %rename(_has_y) has_y() const;
-        %rename(_has_z) has_z() const;
-        %rename(_axes) axes() const;
+        %rename(_get_type) type;
+        %rename(_get_x) x;
+        %rename(_get_y) y;
+        %rename(_get_z) z;
+        %rename(_has_x) has_x;
+        %rename(_has_y) has_y;
+        %rename(_has_z) has_z;
+        %rename(_axes) axes;
 
         %pythoncode %{
-            __swig_getmethods__["type"] = _get_type
-            __swig_getmethods__["x"] = _get_x
-            __swig_getmethods__["y"] = _get_y
-            __swig_getmethods__["z"] = _get_z
-            __swig_getmethods__["has_x"] = _has_x
-            __swig_getmethods__["has_y"] = _has_y
-            __swig_getmethods__["has_z"] = _has_z
-            __swig_getmethods__["axes"] = _axes;
-            if _newclass:
-                type = property(_get_type)
-                x = property(_get_x)
-                y = property(_get_y)
-                z = property(_get_z)
-                has_x = property(_has_x)
-                has_y = property(_has_y)
-                has_z = property(_has_z)
-                axes = property(_axes)
+            type = property(_get_type)
+            x = property(_get_x)
+            y = property(_get_y)
+            z = property(_get_z)
+            has_x = property(_has_x)
+            has_y = property(_has_y)
+            has_z = property(_has_z)
+            axes = property(_axes)
         %}
     }
 
 
     %extend ResistVolume {
         %ignore value(uint32_t, uint32_t, uint32_t) const;
-        %rename(_get_values) values() const;
+        %rename(_get_values) values;
         %pythoncode %{
-            __swig_getmethods__["values"] = _get_values
-            if _newclass:
-                values = property(_get_values)
+            values = property(_get_values)
         %}
     }
 
 
     %extend ResistProfile {
-        %rename(_get_polygons) polygons() const;
+        %rename(_get_polygons) polygons;
         %pythoncode %{
-            __swig_getmethods__["values"] = _get_polygons
-            if _newclass:
-                polygons = property(_get_polygons)
+            polygons = property(_get_polygons)
         %}
     }
 

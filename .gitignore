@@ -1,0 +1,21 @@
+# Build directories
+OptolithiumC/build/
+Plugins/*/build/
+dist/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Compiled shared libraries and extensions
+*.so
+
+# Logs & temp files
+*.log
+logs/
+OptolithiumGui/logs/
+
+# IDE configs
+.vscode/
+.idea/

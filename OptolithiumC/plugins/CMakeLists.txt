@@ -39,6 +39,7 @@ FOREACH(plugins_type ${subdirs})
 		IF (EXISTS "${input_src}")
 			MESSAGE(STATUS "${plugins_type}: ${plugin_name}")
 			ADD_LIBRARY(${plugin_name} SHARED "${input_src}")
+			TARGET_LINK_LIBRARIES(${plugin_name} PRIVATE m)
 			SET_TARGET_PROPERTIES(${plugin_name} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${BUILD_DIR}/${plugins_type}/")
 			INSTALL(
                 TARGETS ${plugin_name} 

@@ -9,8 +9,8 @@ if (FFTW_INCLUDES)
     set (FFTW_FIND_QUIETLY TRUE )
 endif (FFTW_INCLUDES)
 
-find_path (FFTW_INCLUDES fftw3.h)
-find_library (FFTW_LIBRARIES NAMES fftw3)
+find_path (FFTW_INCLUDES fftw3.h PATHS "${CMAKE_CURRENT_SOURCE_DIR}/libs/fftw3-win32")
+find_library (FFTW_LIBRARIES NAMES fftw3 libfftw3.so.3 libfftw3.so fftw3-3 PATHS /usr/lib64 /usr/lib /usr/local/lib)
 # handle the QUIETLY and REQUIRED arguments and set FFTW_FOUND to TRUE if
 # all listed variables are TRUE
 include (FindPackageHandleStandardArgs)

@@ -14,9 +14,15 @@
 // objects such that they can be used as base objects of numpy arrays
 //
 
+#if PY_MAJOR_VERSION >= 3
+#define INIT_ARMA_CAPSULE( MatT )  \
+    ArmaCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
+    if (PyType_Ready(&ArmaCapsulePyType< MatT >::object) < 0) return -1;
+#else
 #define INIT_ARMA_CAPSULE( MatT )  \
     ArmaCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
     if (PyType_Ready(&ArmaCapsulePyType< MatT >::object) < 0) return;
+#endif
 
 template< typename MatT >
 struct ArmaCapsule {
@@ -30,7 +36,11 @@ static void ArmaMat_dealloc( PyObject *self )
     //std::cerr << "ArmaMat_dealloc( " << self << " )"<< std::endl;
     //((ArmaMat_Capsule *)self)->mat->print("mat");
     delete ((ArmaCapsule<MatT> *)self)->mat;
+#if PY_MAJOR_VERSION >= 3
+    Py_TYPE(self)->tp_free( self );
+#else
     self->ob_type->tp_free( self );
+#endif
 };
 
 template<typename MatT >
@@ -41,7 +51,31 @@ private:
     MatT _dummy;
 };
 
-
+#if PY_MAJOR_VERSION >= 3
+template< typename MatT > PyTypeObject ArmaCapsulePyType<MatT>::object = { \
+    PyVarObject_HEAD_INIT(NULL, 0)   \
+    "ArmaCapsule", /*tp_name*/ \
+    sizeof( ArmaCapsule< MatT > ), /*tp_basicsize*/ \
+    0, /*tp_itemsize*/ \
+    ArmaMat_dealloc< MatT >, /*tp_dealloc*/ \
+    0, /*tp_vectorcall_offset*/ \
+    0, /*tp_getattr*/ \
+    0, /*tp_setattr*/ \
+    0, /*tp_as_async*/ \
+    0, /*tp_repr*/ \
+    0, /*tp_as_number*/ \
+    0, /*tp_as_sequence*/ \
+    0, /*tp_as_mapping*/ \
+    0, /*tp_hash */ \
+    0, /*tp_call*/ \
+    0, /*tp_str*/ \
+    0, /*tp_getattro*/ \
+    0, /*tp_setattro*/ \
+    0, /*tp_as_buffer*/ \
+    Py_TPFLAGS_DEFAULT, /*tp_flags*/ \
+    "Internal armadillo capsulation object", /* tp_doc */ \
+    };
+#else
 template< typename MatT > PyTypeObject ArmaCapsulePyType<MatT>::object = { \
     PyObject_HEAD_INIT(NULL)   \
     0, /*ob_size*/             \
@@ -66,6 +100,7 @@ template< typename MatT > PyTypeObject ArmaCapsulePyType<MatT>::object = { \
     Py_TPFLAGS_DEFAULT, /*tp_flags*/ \
     "Internal armadillo capsulation object", /* tp_doc */ \
     };
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // Define types (templated) to allow wrapping of std::shared_ptr< arma::... >
@@ -76,9 +111,15 @@ template< typename MatT > PyTypeObject ArmaCapsulePyType<MatT>::object = { \
 
 #if defined( ARMANPY_SHARED_PTR )
 
+#if PY_MAJOR_VERSION >= 3
+#define INIT_ARMA_BSPTR_CAPSULE( MatT )  \
+    ArmaBsptrCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
+    if (PyType_Ready(&ArmaBsptrCapsulePyType< MatT >::object) < 0) return -1;
+#else
 #define INIT_ARMA_BSPTR_CAPSULE( MatT )  \
     ArmaBsptrCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
     if (PyType_Ready(&ArmaBsptrCapsulePyType< MatT >::object) < 0) return;
+#endif
 
 template< typename MatT >
 struct ArmaBsptrCapsule {
@@ -92,7 +133,11 @@ static void ArmaBsptrMat_dealloc( PyObject *self )
     //std::cerr << "ArmaBsptrMat_dealloc( " << self << " )"<< std::endl;
     //(*(((ArmaBsptrCapsule<MatT> *)self)->mat))->print("mat");
     delete ((ArmaBsptrCapsule<MatT> *)self)->mat;
+#if PY_MAJOR_VERSION >= 3
+    Py_TYPE(self)->tp_free( self );
+#else
     self->ob_type->tp_free( self );
+#endif
 };
 
 template<typename MatT >
@@ -103,7 +148,31 @@ private:
     MatT _dummy;
 };
 
-
+#if PY_MAJOR_VERSION >= 3
+template< typename MatT > PyTypeObject ArmaBsptrCapsulePyType<MatT>::object = { \
+    PyVarObject_HEAD_INIT(NULL, 0)   \
+    "ArmaBsptrCapsule", /*tp_name*/ \
+    sizeof( ArmaBsptrCapsule< MatT > ), /*tp_basicsize*/ \
+    0, /*tp_itemsize*/ \
+    ArmaBsptrMat_dealloc< MatT >, /*tp_dealloc*/ \
+    0, /*tp_vectorcall_offset*/ \
+    0, /*tp_getattr*/ \
+    0, /*tp_setattr*/ \
+    0, /*tp_as_async*/ \
+    0, /*tp_repr*/ \
+    0, /*tp_as_number*/ \
+    0, /*tp_as_sequence*/ \
+    0, /*tp_as_mapping*/ \
+    0, /*tp_hash */ \
+    0, /*tp_call*/ \
+    0, /*tp_str*/ \
+    0, /*tp_getattro*/ \
+    0, /*tp_setattro*/ \
+    0, /*tp_as_buffer*/ \
+    Py_TPFLAGS_DEFAULT, /*tp_flags*/ \
+    "Internal armadillo capsulation object", /* tp_doc */ \
+    };
+#else
 template< typename MatT > PyTypeObject ArmaBsptrCapsulePyType<MatT>::object = { \
     PyObject_HEAD_INIT(NULL)   \
     0, /*ob_size*/             \
@@ -128,6 +197,7 @@ template< typename MatT > PyTypeObject ArmaBsptrCapsulePyType<MatT>::object = { 
     Py_TPFLAGS_DEFAULT, /*tp_flags*/ \
     "Internal armadillo capsulation object", /* tp_doc */ \
     };
+#endif
 
 #endif
 
