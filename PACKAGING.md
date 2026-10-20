@@ -1,35 +1,45 @@
-# Optolithium Linux Packaging Guide (.rpm & .deb)
+# Optolithium Packaging Guide (.rpm, .deb, and .msi)
 
-This guide explains how to generate **`.rpm`** (Fedora, RHEL, Rocky Linux) and **`.deb`** (Ubuntu, Debian, Linux Mint) packages and repositories for Optolithium.
+This guide explains how to generate installation packages for Optolithium across all major operating systems:
+- **`.rpm`** (Fedora, RHEL, Rocky Linux, AlmaLinux)
+- **`.deb`** (Ubuntu, Debian, Linux Mint)
+- **`.msi`** (Microsoft Windows Installer)
 
 ---
 
 ## 1. Quick Overview
 
-| Distribution Family | Package Format | Package Manager | Repository Config File | Repo Metadata Generator |
+| Platform | Format | Package Manager / Tool | Config / Spec File | Generator Script |
 |---|---|---|---|---|
-| **RHEL / Rocky / Fedora** | `.rpm` | `dnf` / `rpm` | `optolithium.repo` (`/etc/yum.repos.d/`) | `createrepo_c` |
-| **Debian / Ubuntu / Mint** | `.deb` | `apt` / `dpkg` | `optolithium.list` (`/etc/apt/sources.list.d/`) | `dpkg-scanpackages` / internal |
+| **RHEL / Rocky / Fedora** | `.rpm` | `dnf` / `rpm` | `optolithium.spec` | `./packaging/build_rpm.sh` |
+| **Debian / Ubuntu / Mint** | `.deb` | `apt` / `dpkg` | `DEBIAN/control` | `./packaging/build_deb.sh` |
+| **Microsoft Windows** | `.msi` | Windows Installer / WiX | `optolithium.wxs` | `./packaging/build_msi.sh` |
 
 ---
 
 ## 2. Quick Start: One-Click Build
 
-To build **both** `.rpm` and `.deb` packages as well as their repository configurations:
+To build Linux packages (`.rpm` and `.deb`) and their repositories:
 
 ```bash
 ./build_packages.sh
 ```
 
-### Targeted Builds:
+### Targeted Platform Builds:
 ```bash
+# Build Linux packages + Windows MSI
+./build_packages.sh --all
+
+# Build only Windows .msi installer
+./build_packages.sh --msi-only
+
 # Build only RPM & DNF repo
 ./build_packages.sh --rpm-only
 
 # Build only DEB & APT repo
 ./build_packages.sh --deb-only
 
-# Bundle dedicated Python virtualenv for offline / air-gapped systems
+# Bundle Python virtual environment for offline / air-gapped systems
 ./build_packages.sh --bundle-venv
 ```
 
@@ -37,7 +47,7 @@ To build **both** `.rpm` and `.deb` packages as well as their repository configu
 
 ## 3. Package Artifacts Output (`dist/`)
 
-After running the build, the artifacts are organized in `dist/`:
+All generated distribution files are organized in `dist/`:
 
 ```
 dist/
@@ -47,109 +57,118 @@ dist/
 ├── rpm/
 │   └── optolithium-0.3.0-1.el10.x86_64.rpm
 ├── dnf-repo/
-│   ├── optolithium-0.3.0-1.el10.x86_64.rpm
-│   └── optolithium.repo
+│   └── optolithium-0.3.0-1.el10.x86_64.rpm
 ├── deb/
 │   └── optolithium_0.3.0-1_amd64.deb
-└── apt-repo/
-    ├── optolithium_0.3.0-1_amd64.deb
-    ├── Packages
-    ├── Packages.gz
-    ├── Release
-    ├── optolithium.list
-    └── optolithium.sources
+├── apt-repo/
+│   ├── optolithium_0.3.0-1_amd64.deb
+│   └── Packages.gz
+├── msi/
+│   └── optolithium-0.3.0.msi         # Windows Installer package
+└── msi-staging/                      # WiX source and Windows build files
+    ├── optolithium.wxs               # Generated WiX XML specification
+    ├── optolithium.bat               # Windows application launcher
+    ├── optolithium-cli.bat           # Windows command-line launcher
+    ├── build_msi.bat                 # Windows WiX v3 builder
+    ├── build_msi_v4.bat              # Windows WiX v4/v5 builder
+    └── build_msi.ps1                 # Windows PowerShell builder
 ```
 
 ---
 
-## 4. Debian / Ubuntu (`.deb`) Guide
+## 4. Windows (`.msi`) Guide
 
-### Building `.deb`
-Use the dedicated packaging script:
+The MSI packaging system creates a standard Windows Installer package featuring:
+- Installation into `C:\Program Files\Optolithium`
+- Start Menu application shortcut and uninstaller
+- Desktop shortcut
+- Windows Add/Remove Programs integration
+- Dual launchers (`optolithium.bat` GUI launcher and `optolithium-cli.bat` console launcher)
+
+### Building the MSI:
+
+#### Method A: Directly on Linux (via `msitools`)
+You can cross-compile the `.msi` directly on Linux without Windows or Wine using `msitools` (`wixl`):
+
+1. Install `msitools`:
+   ```bash
+   # Fedora / RHEL / Rocky Linux
+   sudo dnf install -y msitools
+
+   # Ubuntu / Debian
+   sudo apt install -y msitools
+   ```
+
+2. Build the package:
+   ```bash
+   ./packaging/build_msi.sh
+   # Output: dist/msi/optolithium-0.3.0.msi
+   ```
+
+#### Method B: On Windows (using WiX Toolset)
+1. Run `./packaging/build_msi.sh` (or `./build_packages.sh --msi`) to generate the complete staging directory at `dist/msi-staging/`.
+2. Copy `dist/msi-staging/` to a Windows machine.
+3. Open a Command Prompt or PowerShell in `msi-staging` and run:
+   - For **WiX Toolset v3**:
+     ```cmd
+     build_msi.bat
+     ```
+   - For **WiX Toolset v4/v5** (`dotnet tool install --global wix`):
+     ```cmd
+     build_msi_v4.bat
+     ```
+   - Or directly in PowerShell:
+     ```powershell
+     wix build optolithium.wxs -o optolithium-0.3.0.msi
+     ```
+
+#### Method C: Advanced Installer
+The legacy Advanced Installer project file is preserved at [`installer/Optolithium.aip`](installer/Optolithium.aip) and can be opened in Caphyon Advanced Installer on Windows.
+
+---
+
+## 5. Debian / Ubuntu (`.deb`) Guide
+
+### Building `.deb`:
 ```bash
 ./packaging/build_deb.sh --slim
 ```
-*Note: The script automatically detects whether `dpkg-deb` is installed. If not (e.g. running on Rocky/RHEL/Fedora), it automatically uses a portable internal standard `ar` + `tar` packager to produce a 100% compliant Debian binary package.*
 
-### Installing `.deb` on Debian / Ubuntu
-
-#### Option A: Direct Installation via APT (Recommended)
+### Installing on Debian / Ubuntu:
 ```bash
+# Recommended (resolves dependencies automatically):
 sudo apt install ./dist/deb/optolithium_0.3.0-1_amd64.deb
-```
 
-#### Option B: Direct Installation via dpkg
-```bash
-sudo dpkg -i ./dist/deb/optolithium_0.3.0-1_amd64.deb
-sudo apt-get install -f
+# Or using local repository:
+sudo cp dist/optolithium.list /etc/apt/sources.list.d/
+sudo apt update
+sudo apt install optolithium
 ```
-
-#### Option C: Local APT Repository
-1. Generate APT repository metadata:
-   ```bash
-   ./packaging/create_apt_repo.sh
-   ```
-2. Add the repository to `/etc/apt/sources.list.d/`:
-   ```bash
-   sudo cp dist/optolithium.list /etc/apt/sources.list.d/
-   sudo apt update
-   sudo apt install optolithium
-   ```
 
 ---
 
-## 5. RHEL / Rocky / Fedora (`.rpm`) Guide
+## 6. RHEL / Rocky / Fedora (`.rpm`) Guide
 
-### Building `.rpm`
+### Building `.rpm`:
 ```bash
 ./packaging/build_rpm.sh --slim
 ```
 
-### Installing `.rpm` with DNF
-
-#### Option A: Direct Installation via DNF (Recommended)
+### Installing with DNF:
 ```bash
+# Direct install:
 sudo dnf install ./dist/rpm/optolithium-0.3.0-1.el10.x86_64.rpm
+
+# Or using local repository:
+sudo cp dist/optolithium.repo /etc/yum.repos.d/
+sudo dnf makecache
+sudo dnf install optolithium
 ```
-
-#### Option B: Local DNF Repository (`.repo` file)
-1. Generate DNF repository metadata:
-   ```bash
-   ./packaging/create_dnf_repo.sh
-   ```
-2. Add repository configuration:
-   ```bash
-   sudo cp dist/optolithium.repo /etc/yum.repos.d/
-   sudo dnf makecache
-   sudo dnf install optolithium
-   ```
-
----
-
-## 6. Installed Files Structure
-
-Both packages install following standard Linux system conventions:
-
-| Path | Purpose |
-|---|---|
-| `/opt/optolithium/app/` | Application codebase, views, options, resources |
-| `/opt/optolithium/app/*.so` | Core compiled C++ libraries (`_optolithiumc.so`, `_clipper.so`) |
-| `/opt/optolithium/app/plugins/` | All 13 compiled C++ lithography plugins |
-| `/opt/optolithium/bin/optolithium` | Smart launcher script |
-| `/usr/bin/optolithium` | Global command symlink |
-| `/usr/share/applications/optolithium.desktop` | Application menu desktop shortcut |
-| `/usr/share/icons/hicolor/128x128/apps/optolithium.png` | System application icon |
-| `/usr/share/pixmaps/optolithium.png` | System pixmap icon |
 
 ---
 
 ## 7. Uninstalling
 
-- **Debian / Ubuntu**:
-  ```bash
-  sudo apt remove optolithium
-  ```
-- **RHEL / Rocky / Fedora**:
-  ```bash
-  sudo dnf remove optolithium
-  ```
+- **Windows**: Control Panel &rarr; Add or Remove Programs &rarr; Uninstall Optolithium (or `msiexec /x optolithium-0.3.0.msi`)
+- **Debian / Ubuntu**: `sudo apt remove optolithium`
+- **RHEL / Rocky / Fedora**: `sudo dnf remove optolithium`

@@ -52,14 +52,17 @@ To install the desktop application shortcut into your system application menu:
 cp Optolithium.desktop ~/.local/share/applications/
 ```
 
-### Installing via Linux Packages (.rpm & .deb)
+### Packages & Installers (.rpm, .deb, and .msi)
 
-Optolithium provides automated packaging scripts for all major Linux distributions:
+Optolithium provides automated packaging scripts for all major Linux distributions and Windows:
 
 #### Build Packages (One-Click):
 ```bash
-# Builds both .rpm (DNF) and .deb (APT) packages
+# Builds .rpm (DNF) and .deb (APT) packages
 ./build_packages.sh
+
+# Or build all platforms including Windows .msi installer:
+./build_packages.sh --all
 ```
 
 #### Install on Fedora / RHEL / Rocky Linux / AlmaLinux (.rpm):
@@ -72,7 +75,14 @@ sudo dnf install -y dist/rpm/optolithium-*.rpm
 sudo apt install -y ./dist/deb/optolithium_*.deb
 ```
 
-For detailed repository configuration, offline/air-gapped bundle builds, and APT/DNF local repos, see [PACKAGING.md](PACKAGING.md).
+#### Windows Installer (.msi):
+Compile on Linux using `msitools` (`sudo dnf install msitools` or `sudo apt install msitools`):
+```bash
+./packaging/build_msi.sh
+```
+Or use WiX Toolset on Windows with the staged files in `dist/msi-staging/`.
+
+For detailed repository configuration, offline/air-gapped bundle builds, and WiX MSI setup, see [PACKAGING.md](PACKAGING.md).
 
 ---
 

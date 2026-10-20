@@ -1,24 +1,54 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# One-click script to build Optolithium RPM & DEB packages and repositories
+# One-click script to build Optolithium RPM, DEB, and MSI packages
 # ==============================================================================
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-BUILD_RPM=true
-BUILD_DEB=true
+BUILD_RPM=false
+BUILD_DEB=false
+BUILD_MSI=false
+USER_SELECTED_TARGET=false
 EXTRA_ARGS=()
 
 for arg in "$@"; do
     case "$arg" in
+        --rpm)
+            BUILD_RPM=true
+            USER_SELECTED_TARGET=true
+            ;;
+        --deb)
+            BUILD_DEB=true
+            USER_SELECTED_TARGET=true
+            ;;
+        --msi)
+            BUILD_MSI=true
+            USER_SELECTED_TARGET=true
+            ;;
+        --all)
+            BUILD_RPM=true
+            BUILD_DEB=true
+            BUILD_MSI=true
+            USER_SELECTED_TARGET=true
+            ;;
         --rpm-only)
             BUILD_RPM=true
             BUILD_DEB=false
+            BUILD_MSI=false
+            USER_SELECTED_TARGET=true
             ;;
         --deb-only)
             BUILD_RPM=false
             BUILD_DEB=true
+            BUILD_MSI=false
+            USER_SELECTED_TARGET=true
+            ;;
+        --msi-only)
+            BUILD_RPM=false
+            BUILD_DEB=false
+            BUILD_MSI=true
+            USER_SELECTED_TARGET=true
             ;;
         *)
             EXTRA_ARGS+=("$arg")
@@ -26,9 +56,15 @@ for arg in "$@"; do
     esac
 done
 
+# Default behavior: build Linux native packages (.rpm and .deb)
+if [ "$USER_SELECTED_TARGET" = false ]; then
+    BUILD_RPM=true
+    BUILD_DEB=true
+fi
+
 if [ "$BUILD_RPM" = true ]; then
     echo "=========================================================="
-    echo " Step 1: Building .rpm Package & DNF Repository"
+    echo " Step: Building .rpm Package & DNF Repository"
     echo "=========================================================="
     "$SCRIPT_DIR/packaging/build_rpm.sh" "${EXTRA_ARGS[@]}"
     "$SCRIPT_DIR/packaging/create_dnf_repo.sh"
@@ -37,15 +73,23 @@ fi
 
 if [ "$BUILD_DEB" = true ]; then
     echo "=========================================================="
-    echo " Step 2: Building .deb Package & APT Repository"
+    echo " Step: Building .deb Package & APT Repository"
     echo "=========================================================="
     "$SCRIPT_DIR/packaging/build_deb.sh" "${EXTRA_ARGS[@]}"
     "$SCRIPT_DIR/packaging/create_apt_repo.sh"
     echo ""
 fi
 
+if [ "$BUILD_MSI" = true ]; then
+    echo "=========================================================="
+    echo " Step: Preparing Windows .msi Package"
+    echo "=========================================================="
+    "$SCRIPT_DIR/packaging/build_msi.sh" "${EXTRA_ARGS[@]}"
+    echo ""
+fi
+
 echo "=========================================================="
-echo " All Requested Packaging Artifacts Created in dist/ !"
+echo " Packaging Process Finished!"
 echo "=========================================================="
 if [ "$BUILD_RPM" = true ]; then
     echo "RPM Packages:"
@@ -59,5 +103,11 @@ if [ "$BUILD_DEB" = true ]; then
     ls -lh "$SCRIPT_DIR/dist/deb"/*.deb 2>/dev/null || true
     echo "APT Repo Config:"
     ls -lh "$SCRIPT_DIR/dist"/*.list "$SCRIPT_DIR/dist"/*.sources 2>/dev/null || true
+    echo ""
+fi
+if [ "$BUILD_MSI" = true ]; then
+    echo "MSI Packages & Staging:"
+    ls -lh "$SCRIPT_DIR/dist/msi"/*.msi 2>/dev/null || true
+    ls -d "$SCRIPT_DIR/dist/msi-staging" 2>/dev/null || true
 fi
 echo "=========================================================="
