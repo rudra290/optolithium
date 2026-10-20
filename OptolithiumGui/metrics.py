@@ -134,9 +134,7 @@ class MetricNotImplementedError(Exception):
     pass
 
 
-class MetrologyInterface(object):
-
-    __metaclass__ = abc.ABCMeta
+class MetrologyInterface(object, metaclass=abc.ABCMeta):
 
     def __calculate_1d_wrap(self, sim_data, **kwargs):
         """:type sim_data: oplc.ResistVolume"""
@@ -493,7 +491,7 @@ class CriticalDimension(MetrologyInterface):
         level = kwargs.get("level")
         level_edge = oplc.Edge2d(min(x), level, amax(x), level)
         cross_points = []
-        for k in xrange(len(values)-1):
+        for k in range(len(values)-1):
             current_edge = oplc.Edge2d(x[k], values[k], x[k+1], values[k+1])
             if level_edge.cross_type(current_edge) == oplc.SKEW_CROSS:
                 cross_points.append(level_edge.point(current_edge))

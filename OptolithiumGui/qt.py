@@ -22,37 +22,97 @@
 # If you are interested in other licensing models, including a commercial-
 # license, please contact the author at gladkikhalexei@gmail.com
 
-import PySide
-import PySide.QtCore as _QtCore
-import PySide.QtGui as _QtGui
-import PySide.QtWebKit as _QtWebKit
+import types
+import sys
+
+try:
+    from PyQt5 import QtCore as _QtCore
+    from PyQt5 import QtGui as _PyQtQtGui
+    from PyQt5 import QtWidgets as _QtWidgets
+    backend_name = 'PyQt5'
+    core_version = _QtCore.PYQT_VERSION_STR
+    version = _QtCore.PYQT_VERSION_STR
+    Signal = _QtCore.pyqtSignal
+    Slot = _QtCore.pyqtSlot
+except ImportError:
+    try:
+        import PySide
+        import PySide.QtCore as _QtCore
+        import PySide.QtGui as _PyQtQtGui
+        _QtWidgets = _PyQtQtGui
+        backend_name = 'PySide'
+        core_version = _QtCore.__version__
+        version = PySide.__version__
+        Signal = _QtCore.Signal
+        Slot = _QtCore.Slot
+    except ImportError:
+        from PySide2 import QtCore as _QtCore
+        from PySide2 import QtGui as _PyQtQtGui
+        from PySide2 import QtWidgets as _QtWidgets
+        import PySide2
+        backend_name = 'PySide2'
+        core_version = _QtCore.__version__
+        version = PySide2.__version__
+        Signal = _QtCore.Signal
+        Slot = _QtCore.Slot
+
+# Composite QtGui module to provide both QtGui and QtWidgets classes (for Qt4/PySide compatibility)
+class _QtGuiShim(types.ModuleType):
+    def __init__(self, original_gui, original_widgets, original_core):
+        super(_QtGuiShim, self).__init__('QtGui')
+        self._gui = original_gui
+        self._widgets = original_widgets
+        self._core = original_core
+
+    def __getattr__(self, name):
+        if hasattr(self._widgets, name):
+            return getattr(self._widgets, name)
+        if hasattr(self._gui, name):
+            return getattr(self._gui, name)
+        if hasattr(self._core, name):
+            return getattr(self._core, name)
+        raise AttributeError("module 'QtGui' has no attribute '%s'" % name)
+
+    def __dir__(self):
+        return list(set(dir(self._gui) + dir(self._widgets) + dir(self._core)))
+
+QtGui = _QtGuiShim(_PyQtQtGui, _QtWidgets, _QtCore)
+QtCore = _QtCore
+QtWidgets = _QtWidgets
+
+if hasattr(_QtWidgets, "QHeaderView"):
+    if not hasattr(_QtWidgets.QHeaderView, "setClickable"):
+        _QtWidgets.QHeaderView.setClickable = lambda self, clickable: self.setSectionsClickable(clickable)
+    if not hasattr(_QtWidgets.QHeaderView, "setMovable"):
+        _QtWidgets.QHeaderView.setMovable = lambda self, movable: self.setSectionsMovable(movable)
+    if not hasattr(_QtWidgets.QHeaderView, "setResizeMode"):
+        _QtWidgets.QHeaderView.setResizeMode = lambda self, *args: self.setSectionResizeMode(*args)
+
+# WebKit compatibility shim using QTextBrowser (or QtWebEngineWidgets if available)
+class _QWebViewWrapper(_QtWidgets.QTextBrowser):
+    def __init__(self, parent=None):
+        super(_QWebViewWrapper, self).__init__(parent)
+        self.setOpenExternalLinks(True)
+
+    def setHtml(self, html):
+        super(_QWebViewWrapper, self).setHtml(html)
+
+    def print_(self, printer):
+        super(_QWebViewWrapper, self).print(printer)
+
+class _QtWebKitShim:
+    QWebView = _QWebViewWrapper
+
+QtWebKit = _QtWebKitShim()
 
 import helpers
 import logging as module_logging
 
-
-backend_name = 'PySide'
-
-
 __author__ = 'Alexei Gladkikh'
-
 
 logging = module_logging.getLogger(__name__)
 logging.setLevel(module_logging.INFO)
 helpers.logStreamEnable(logging)
-
-
-QtCore = _QtCore
-QtGui = _QtGui
-QtWebKit = _QtWebKit
-
-
-Signal = QtCore.Signal
-Slot = QtCore.Slot
-
-
-core_version = QtCore.__version__
-version = PySide.__version__
 
 
 def connect(signal, *slots, **kwargs):
@@ -63,7 +123,6 @@ def connect(signal, *slots, **kwargs):
     connection_type = kwargs.get("connection_type", QtCore.Qt.AutoConnection)
     logging.debug("Connect %s with %s" % (signal, slots))
     for slot in slots:
-        # noinspection PyUnresolvedReferences
         signal.connect(slot, connection_type)
 
 
@@ -73,7 +132,6 @@ def disconnect(signal, slot):
     :type slot: Slot
     """
     logging.debug("Disconnect %s with %s" % (signal, slot))
-    # noinspection PyUnresolvedReferences
     signal.disconnect(slot)
 
 
@@ -81,10 +139,8 @@ class _GlobalSignalsClass(QtCore.QObject):
 
     changed = Signal()
 
-    # noinspection PyPep8Naming
     @Slot()
     def onChanged(self):
-        # noinspection PyUnresolvedReferences
         self.changed.emit()
 
 

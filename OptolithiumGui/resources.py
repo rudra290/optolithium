@@ -23,14 +23,38 @@
 
 import os
 import sys
+import mimetypes
 
 if os.name == "nt":
     basis = sys.executable if hasattr(sys, 'frozen') else sys.argv[0]
     basepath = os.path.split(basis)[0]
     os.environ['PATH'] = basepath + os.pathsep + os.environ['PATH']
 
-import magic
-from magic.api import MagicError
+_magic_detector = None
+try:
+    import magic
+    if hasattr(magic, "from_file"):
+        _magic_detector = lambda p: magic.from_file(p, mime=True)
+    elif hasattr(magic, "Magic"):
+        try:
+            _m = magic.Magic(flags=getattr(magic, "MAGIC_MIME_TYPE", 0))
+        except Exception:
+            _m = magic.Magic(paths=["share/misc/magic"], flags=getattr(magic, "MAGIC_MIME_TYPE", 0))
+        _magic_detector = lambda p: _m.id_filename(p)
+except Exception:
+    pass
+
+def detect_mime(path):
+    if _magic_detector is not None:
+        try:
+            res = _magic_detector(path)
+            if res:
+                return res
+        except Exception:
+            pass
+    guess, _ = mimetypes.guess_type(path)
+    return guess
+
 import helpers
 import logging as module_logging
 
@@ -107,12 +131,6 @@ class Resources(object):
 
     _instance = None
 
-    # FIXME: Quirk to load magic library (must be fixed by mean of the recompiling of libmagic1 library)
-    try:
-        _magic = magic.Magic(flags=magic.MAGIC_MIME_TYPE)
-    except MagicError:
-        _magic = magic.Magic(paths=["share/misc/magic"], flags=magic.MAGIC_MIME_TYPE)
-
     def __new__(cls, resource=None, attribute=None, data=None):
         if not cls._instance:
             cls._instance = super(Resources, cls).__new__(cls)
@@ -135,9 +153,11 @@ class Resources(object):
         for directory in directories:
             data[directory] = dict()
             resource_directory = os.path.join(basepath, directory)
+            if not os.path.isdir(resource_directory):
+                continue
             for filename in os.listdir(resource_directory):
                 path = os.path.join(resource_directory, filename)
-                mime_type = cls._magic.id_filename(path)
+                mime_type = detect_mime(path)
                 if mime_type is not None:
                     mime = mime_type.split('/')[0]
                     try:
@@ -163,12 +183,12 @@ class Resources(object):
 
 
 if __name__ == "__main__":
-    import PyQt4.QtGui as QtGui
+    from qt import QtGui
     app = QtGui.QApplication(sys.argv)
     Resources.load(os.getcwd(), ["icons", "ddl"],  QtGui.QIcon)
-    print Resources("icons/No")
-    print Resources("icons/Resist", "url")
-    print Resources("ddl")
+    print(Resources("icons/No"))
+    print(Resources("icons/Resist", "url"))
+    print(Resources("ddl"))
     main_window = QtGui.QMainWindow()
     main_window.show()
     sys.exit(app.exec_())

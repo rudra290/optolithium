@@ -41,36 +41,50 @@ helpers.logStreamEnable(logging)
 
 darwin = "darwin"
 nt = "win32"
-posix = "linux2"
+posix = "posix"
+linux = "linux"
+
+if sys.platform.startswith("darwin"):
+    current_os = darwin
+elif sys.platform.startswith("win32") or sys.platform.startswith("cygwin"):
+    current_os = nt
+else:
+    current_os = linux
 
 
 _shared_ext = {
     darwin: ".dylib",
     nt: ".dll",
+    linux: ".so",
+    "linux2": ".so",
     posix: ".so"
 }
 
 
-shared_ext = _shared_ext[sys.platform]
+shared_ext = _shared_ext.get(current_os, ".so")
 
 
 _plot_bottom_adjust = {
     darwin: 0.15,
     nt: 0.15,
+    linux: 0.15,
+    "linux2": 0.15,
     posix: 0.15
 }
 
-plot_bottom_adjust = _plot_bottom_adjust[sys.platform]
+plot_bottom_adjust = _plot_bottom_adjust.get(current_os, 0.15)
 
 
 _application_styles = {
-    darwin: u"Plastique",
+    darwin: u"Fusion",
     nt: u"Windows",
-    posix: u"Windows"
+    linux: u"Fusion",
+    "linux2": u"Fusion",
+    posix: u"Fusion"
 }
 
 
-application_style = _application_styles[sys.platform]
+application_style = _application_styles.get(current_os, u"Fusion")
 
 RESIST_FILL_COLOR = "purple"
 RESIST_LINES_COLOR = "black"
@@ -119,7 +133,14 @@ if sys.platform == nt:
     ctypes.windll.kernel32.GetEnvironmentVariableW(u"USERPROFILE", buf, 1024)
     HOME_PATH = buf.value
 else:
-    HOME_PATH = os.path.expanduser("~")
+    HOME_PATH = os.environ.get("OPTOLITHIUM_HOME") or os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~")
+    if not os.access(HOME_PATH, os.W_OK):
+        fallback = os.path.join("/tmp", ".Optolithium")
+        try:
+            os.makedirs(fallback, exist_ok=True)
+            HOME_PATH = "/tmp"
+        except Exception:
+            HOME_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 APPLICATION_DIRECTORY = "." + APPLICATION_NAME
 CONFIG_NAME = "config.json"
@@ -222,7 +243,7 @@ class LayerMapConfig(object):
 
     def boundary_layer(self):
         """:rtype: (int, int)"""
-        return [map(int, k.split(".")) for k, v in self.__data.iteritems()
+        return [list(map(int, k.split("."))) for k, v in self.__data.items()
                 if v == LayerMapConfig.BOUNDARY_LAYER_VALUE][0]
 
     def __getitem__(self, item):
@@ -230,7 +251,7 @@ class LayerMapConfig(object):
 
     def get_layer(self, transmittance, phase):
         """:rtype: (int, int)"""
-        layers = [k for k, v in self.__data.iteritems()
+        layers = [k for k, v in self.__data.items()
                   if isinstance(v, dict) and
                   v[LayerMapConfig.TRANSMITTANCE_MAP_KEY] == transmittance and
                   v[LayerMapConfig.PHASE_MAP_KEY] == phase]
@@ -238,7 +259,7 @@ class LayerMapConfig(object):
             raise KeyError
         if layers[0] == LayerMapConfig.BACKGROUND_LAYER_KEY:
             raise ValueError
-        return map(int, layers[0].split("."))
+        return list(map(int, layers[0].split(".")))
 
 
 GdsLayerMapping = None
@@ -253,7 +274,7 @@ def openLayerMapConfig(path):
 
 class _Configuration(object):
 
-    SYSTEM_PLUGINS_PATH = "plugins"
+    SYSTEM_PLUGINS_PATH = os.path.join(os.path.dirname(__file__), "plugins")
     PLUGIN_PATHS_SEPARATOR = ";"
 
     __ERROR_CONFIG_NOT_INIT_MSG__ = "Configuration was not initialized"
@@ -331,8 +352,7 @@ class _Configuration(object):
 
     def serialize(self):
         result = self.__data
-        filtered = filter(lambda v: v != _Configuration.SYSTEM_PLUGINS_PATH, self.__data["plugin_paths"])
-        logging.info("%s" % filtered)
+        filtered = list(filter(lambda v: v != _Configuration.SYSTEM_PLUGINS_PATH, self.__data["plugin_paths"]))
         result["plugin_paths"] = _Configuration.PLUGIN_PATHS_SEPARATOR.join(filtered)
         return result
 
@@ -443,13 +463,14 @@ class _Configuration(object):
         return config
 
     def save(self, path=CONFIG_PATH):
-        config_dir = os.path.dirname(os.path.abspath(path))
-
-        if not os.path.exists(config_dir):
-            os.makedirs(config_dir)
-
-        with open(path, "w") as config_file:
-            config_file.write(json.dumps(self.serialize(), indent=4))
+        try:
+            config_dir = os.path.dirname(os.path.abspath(path))
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir, exist_ok=True)
+            with open(path, "w") as config_file:
+                config_file.write(json.dumps(self.serialize(), indent=4))
+        except OSError as e:
+            logging.warning("Can't save configuration file: %s" % e)
 
 
 Configuration = _Configuration.open()

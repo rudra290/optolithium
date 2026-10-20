@@ -52,11 +52,11 @@ def cartesian(*arrays):
     """
     def _cartesian(_arrays, _out):
         _n = numpy.prod([_x.size for _x in _arrays])
-        m = _n / _arrays[0].size
+        m = int(_n // _arrays[0].size)
         _out[:, 0] = numpy.repeat(_arrays[0], m)
         if _arrays[1:]:
             _cartesian(_arrays[1:], _out=_out[0:m, 1:])
-            for j in xrange(1, _arrays[0].size):
+            for j in range(1, _arrays[0].size):
                 _out[j*m:(j+1)*m, 1:] = _out[0:m, 1:]
         return _out
 

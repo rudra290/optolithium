@@ -231,11 +231,11 @@ def save_cython_files(tmp_dir, extensions, ext):
             real_path = path + ext
 
             if not os.path.exists(os.path.join(tmp_dir, real_path)):
-                print "Move %s to %s" % (real_path, os.path.join(tmp_dir, real_path))
+                print("Move %s to %s" % (real_path, os.path.join(tmp_dir, real_path)))
                 os.renames(real_path, os.path.join(tmp_dir, real_path))
 
             elif cmp_hash(real_path, os.path.join(tmp_dir, real_path)):
-                print "Move %s to %s" % (real_path, os.path.join(tmp_dir, real_path))
+                print("Move %s to %s" % (real_path, os.path.join(tmp_dir, real_path)))
                 os.renames(real_path, os.path.join(tmp_dir, real_path))
 
 

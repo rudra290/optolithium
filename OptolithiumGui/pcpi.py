@@ -80,7 +80,12 @@ def deref(p):
 
 
 def ro_property(attribute):
-    return property(fget=lambda self: getattr(self, attribute))
+    def _getter(self):
+        val = getattr(self, attribute)
+        if isinstance(val, bytes):
+            return val.decode("utf-8", errors="replace")
+        return val
+    return property(fget=_getter)
 
 
 def rw_property(attribute):
@@ -97,7 +102,7 @@ class _variable_part_t(Structure):
         ("_max", POINTER(c_double))
     ]
 
-    name = property(lambda self: self._name)
+    name = property(lambda self: self._name.decode("utf-8", errors="replace") if isinstance(self._name, bytes) else self._name)
     """:type: str"""
     defv = property(lambda self: self._defv)
     """:type: float"""
@@ -140,9 +145,9 @@ class dev_model_t(CPluginInterface):
 
     prolith_id = property(lambda self: deref(self._prolith_id))
     """:type: int or None"""
-    name = property(lambda self: self._name)
+    name = property(lambda self: self._name.decode("utf-8", errors="replace") if isinstance(self._name, bytes) else self._name)
     """:type: str"""
-    desc = property(lambda self: self._desc)
+    desc = property(lambda self: self._desc.decode("utf-8", errors="replace") if isinstance(self._desc, bytes) else self._desc)
     """:type: str"""
     expr = property(lambda self: self._expr)
     """:type: dev_model_expr_t"""
@@ -152,7 +157,7 @@ class dev_model_t(CPluginInterface):
     """:type: list of dev_model_arg_t"""
 
     def __str__(self):
-        args = "\n".join(["\t%d. %s" % (k, self.args[k]) for k in xrange(self.args_count)])
+        args = "\n".join(["\t%d. %s" % (k, self.args[k]) for k in range(self.args_count)])
         return ("Name: \"%s\"\nDesc: %s\nExpr: %s\nCount: %d\nProlith Id: %s\nArgs:\n%s" %
                 (self.name, self.desc, self.expr, self.args_count, self.prolith_id, args))
 

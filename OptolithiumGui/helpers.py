@@ -28,11 +28,19 @@ import subprocess
 import threading
 import traceback
 import functools
-from Queue import Queue as StandardQueue
-from Queue import Empty as QueueEmpty
+try:
+    from queue import Queue as StandardQueue
+    from queue import Empty as QueueEmpty
+except ImportError:
+    from Queue import Queue as StandardQueue
+    from Queue import Empty as QueueEmpty
 import logging as module_logging
 import sys
 import itertools
+try:
+    from itertools import izip
+except ImportError:
+    izip = zip
 
 
 __author__ = 'Alexei Gladkikh'
@@ -169,7 +177,7 @@ def enum(*sequential, **named):
     E.reverse_mapping[1] => "TWO"
     """
     enums = dict(zip(sequential, range(len(sequential))), **named)
-    reverse = dict((value, key) for key, value in enums.iteritems())
+    reverse = dict((value, key) for key, value in enums.items())
     enums['reverse_mapping'] = reverse
     return type('Enum', (), enums)
 
@@ -180,22 +188,20 @@ def enum(*sequential, **named):
 def pairwise_shift(iterable):
     """s -> (s0,s1), (s2,s3), (s4, s5), ..."""
     a = iter(iterable)
-    return itertools.izip(a, a)
+    return izip(a, a)
 
 
 def pairwise_all(iterable):
     """s -> (s0,s1), (s1,s2), (s2, s3), ..."""
     a, b = itertools.tee(iterable)
     next(b, None)
-    return itertools.izip(a, b)
+    return izip(a, b)
 
 
 # --------------------------------------------------------------------------------------------------
 
 
-class DisposableInterface(object):
-
-    __metaclass__ = abc.ABCMeta
+class DisposableInterface(object, metaclass=abc.ABCMeta):
 
     def __init__(self, *args, **kwargs):
         pass

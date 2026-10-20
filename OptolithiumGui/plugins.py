@@ -53,30 +53,33 @@ class System(object):
         self._windll.kernel32.FreeLibrary(handle)
 
     def __init__(self):
-        if sys.platform.startswith(config.darwin):
+        if sys.platform.startswith("darwin"):
             self._dylib = ctypes.cdll.LoadLibrary("libdl.dylib")
-        elif os.name == config.posix:
-            self._libdl = ctypes.cdll.LoadLibrary("libdl.so")
-        elif os.name == config.nt:
+            self._free_lib_fn = self._darwin_free_lib
+        elif os.name == "nt":
             self._windll = ctypes.windll
-
-        self._free_library = {
-            config.darwin: self._darwin_free_lib,
-            config.nt: self._windows_free_lib,
-            config.posix: self._linux_free_lib
-        }
+            self._free_lib_fn = self._windows_free_lib
+        else:
+            try:
+                self._libdl = ctypes.cdll.LoadLibrary("libdl.so")
+            except OSError:
+                self._libdl = ctypes.CDLL(None)
+            self._free_lib_fn = self._linux_free_lib
 
     # noinspection PyProtectedMember
     def free_library(self, library):
         handle = library._handle
-        # noinspection PyCallingNonCallable
-        return self._free_library[os.name](handle)
+        return self._free_lib_fn(handle)
 
     # noinspection PyMethodMayBeStatic,PyPep8Naming
     @property
     def SharedLibraryLoadError(self):
-        # noinspection PyUnresolvedReferences
-        return WindowsError
+        if hasattr(ctypes, 'WinError'):
+            try:
+                return WindowsError
+            except NameError:
+                return OSError
+        return OSError
 
 
 system = System()
@@ -248,6 +251,7 @@ class Inspector(object):
     class CommonError(Exception):
         def __init__(self, *args, **kwargs):
             super(Inspector.CommonError, self).__init__(*args, **kwargs)
+            self.message = args[0] if args else ""
 
     class VerifyError(CommonError):
         def __init__(self, *args, **kwargs):
@@ -280,7 +284,7 @@ class Inspector(object):
         entry = plugin.entry
         """:type: dev_model_t"""
         args = [orm.DevelopmentModelArg(entry.args[k].name, k, entry.args[k].defv, entry.args[k].min, entry.args[k].max)
-                for k in xrange(entry.args_count)]
+                for k in range(entry.args_count)]
         return orm.DevelopmentModel(name=entry.name, args=args, desc=entry.desc, prolith_id=entry.prolith_id)
 
     @staticmethod
@@ -317,7 +321,7 @@ class Inspector(object):
         entry = plugin.entry
         prms = [prm_type(
             entry.parameters[k].name, k, entry.parameters[k].defv,
-            entry.parameters[k].min, entry.parameters[k].max) for k in xrange(entry.parameters_count)]
+            entry.parameters[k].min, entry.parameters[k].max) for k in range(entry.parameters_count)]
         return plg_type(name=entry.name, prms=prms, desc=entry.desc)
 
     @staticmethod
@@ -351,7 +355,7 @@ class Inspector(object):
         entry = plugin.entry
         prms = [orm.AbstractPluginMaskPrm(
             entry.parameters[k].name, k, entry.parameters[k].defv,
-            entry.parameters[k].min, entry.parameters[k].max) for k in xrange(entry.parameters_count)]
+            entry.parameters[k].min, entry.parameters[k].max) for k in range(entry.parameters_count)]
         return orm.AbstractPluginMask(name=entry.name, prms=prms, desc=entry.desc, dims=entry.dimensions)
 
     @staticmethod

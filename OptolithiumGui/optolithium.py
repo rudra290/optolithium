@@ -86,7 +86,8 @@ class AboutWindow(QtGui.QDialog):
         self.setWindowTitle("About")
         self.setWindowIcon(parent.windowIcon())
 
-        logo_banner = os.path.join(os.getcwd(), "icons/Banner.png")
+        gui_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_banner = os.path.join(gui_dir, "icons", "Banner.png")
         self.__program_banner = QtGui.QLabel(self)
         self.__program_banner.setPixmap(QtGui.QPixmap(logo_banner))
         self.__program_banner.setAlignment(QtCore.Qt.AlignCenter)
@@ -132,7 +133,7 @@ class MemoryUsageView(QtGui.QProgressBar):
 
     def update_memory(self):
         usage = psutil.virtual_memory()
-        meminfo = self.__process.get_memory_info()
+        meminfo = self.__process.memory_info()
         total = int(usage.total/MEGABYTE)
         free = int(usage.available/MEGABYTE)
         required = int(meminfo.rss/MEGABYTE)
@@ -159,7 +160,8 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
         
-        Resources.load(os.getcwd(), ["icons", "xhtml"], icon_driver=QtGui.QIcon)
+        gui_dir = os.path.dirname(os.path.abspath(__file__))
+        Resources.load(gui_dir, ["icons", "xhtml"], icon_driver=QtGui.QIcon)
 
         self.tabs = dict()
         """:type: dict from str to QtGui.QWidget"""
@@ -211,7 +213,7 @@ class MainWindow(QtGui.QMainWindow):
 
         connect(self.options.changed, self.setApplicationTitle)
         self.setApplicationTitle()
-        self.setWindowIcon(QtGui.QIcon("icons/Logo.png"))
+        self.setWindowIcon(QtGui.QIcon(os.path.join(gui_dir, "icons", "Logo.png")))
 
         self.configure_controls()
         self.configure_window_state()
@@ -373,6 +375,8 @@ class MainWindow(QtGui.QMainWindow):
         if not self.options.coupled:
             path, _ = QtGui.QFileDialog.getSaveFileName(
                 self.centralWidget(), "Save Options As...", self.options.path, config.OPTIONS_EXTENSION)
+            if not path:
+                return
         else:
             path = self.options.path
 
@@ -384,12 +388,16 @@ class MainWindow(QtGui.QMainWindow):
     def save_options_as(self):
         path, _ = QtGui.QFileDialog.getSaveFileName(
             self.centralWidget(), "Save Options As...", self.options.path, config.OPTIONS_EXTENSION)
+        if not path:
+            return
 
         self.options.save(path)
         self.statusBar().showMessage("Options has been successfully saved to %s" % path,
                                      config.STATUS_BAR_MESSAGE_DURATION)
 
     def _open_options(self, path):
+        if not path:
+            return
         try:
             self.options.open(path)
         except options.OptionsLoadErrors as errors:
@@ -414,7 +422,8 @@ class MainWindow(QtGui.QMainWindow):
         if self.options_modified_handler():
             path, _ = QtGui.QFileDialog.getOpenFileName(
                 self.centralWidget(), "Open Options", self.options.path, config.OPTIONS_EXTENSION)
-            self._open_options(path)
+            if path:
+                self._open_options(path)
 
     # noinspection PyPep8Naming
     def changeStackView(self):
