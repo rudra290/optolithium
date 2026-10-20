@@ -219,7 +219,7 @@ class DiffractionPatternGraph(QGraphPlot):
         else:
             # Continuous data
             xi = yi = numpy.linspace(-na, na, 101)
-            lookup_table = interpolate.interp1d(xi, xrange(len(xi)), kind="nearest")
+            lookup_table = interpolate.interp1d(xi, numpy.arange(len(xi)), kind="nearest")
 
             cols = lookup_table(wvl*self.pattern.frqx)
             rows = lookup_table(wvl*self.pattern.frqy)
@@ -267,10 +267,13 @@ class DiffractionPatternGraph(QGraphPlot):
             if not self._draw_zero_term and self._pattern.frqx.size != 1:
                 values[self._x0] = "nan"
 
-            markerline, stemlines, _ = self._axis_xplot.stem(self.pattern.cx, values, "k-", markerfmt="k^")
+            markerline, stemlines, _ = self._axis_xplot.stem(self.pattern.cx, values, linefmt="k-", markerfmt="k^")
             markerline.set_markersize(10)
-            for k, item in enumerate(stemlines):
-                item.set_linewidth(2)
+            if hasattr(stemlines, "set_linewidth"):
+                stemlines.set_linewidth(2)
+            else:
+                for k, item in enumerate(stemlines):
+                    item.set_linewidth(2)
         else:
             # Continuous data
             self._axis_xplot.plot(self.pattern.cx, values, "k-", linewidth=2)
@@ -318,13 +321,26 @@ class DiffractionPatternGraph(QGraphPlot):
             if not self._draw_zero_term and self._pattern.frqy.size != 1:
                 values[self._y0] = "nan"
 
-            markerline, stemlines, baseline = self._axis_yplot.stem(self.pattern.cy, values, 'k-', markerfmt="k>")
-            swap(markerline)
-            swap(baseline)
-            markerline.set_markersize(10)
-            for k, item in enumerate(stemlines):
-                swap(item)
-                item.set_linewidth(2)
+            try:
+                markerline, stemlines, baseline = self._axis_yplot.stem(
+                    self.pattern.cy, values, linefmt="k-", markerfmt="k>", orientation="horizontal")
+                markerline.set_markersize(10)
+                if hasattr(stemlines, "set_linewidth"):
+                    stemlines.set_linewidth(2)
+                else:
+                    for k, item in enumerate(stemlines):
+                        item.set_linewidth(2)
+            except TypeError:
+                markerline, stemlines, baseline = self._axis_yplot.stem(self.pattern.cy, values, 'k-', markerfmt="k>")
+                swap(markerline)
+                swap(baseline)
+                markerline.set_markersize(10)
+                if hasattr(stemlines, "set_linewidth"):
+                    stemlines.set_linewidth(2)
+                else:
+                    for k, item in enumerate(stemlines):
+                        swap(item)
+                        item.set_linewidth(2)
             self._axis_yplot.set_xlim(*self._axis_yplot.get_ylim())
         else:
             # Continuous data
@@ -405,9 +421,9 @@ class DiffractionPatternView(QStackWidgetTab):
     def on_combobox_changed(self, indx):
         self.__graph.output_type = indx
 
-    @Slot(bool)
+    @Slot(int)
     def on_chkbox_toggled(self, state):
-        self.__graph.draw_zero_term = state
+        self.__graph.draw_zero_term = bool(state)
 
     @Slot(int)
     def on_kx_spin_changed(self, value):

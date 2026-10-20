@@ -233,15 +233,39 @@ class LoadResistDialog(QtGui.QDialog):
         self.__vlayout.addLayout(self.__hlayout)
         self.__vlayout.addLayout(self.__buttons_layout)
 
+        self.update_resists()
+
+    def update_resists(self):
+        self.__resist_list.clear()
+        for resist in self.__appdb[orm.Resist]:
+            self.__resist_list.addItem(resist.name)
+        if self.__resist_list.count() > 0:
+            self.__resist_list.setCurrentRow(0)
+            self.__load_button.setEnabled(True)
+        else:
+            self.__load_button.setEnabled(False)
+
+    def showEvent(self, *args, **kwargs):
+        self.update_resists()
+        super(LoadResistDialog, self).showEvent(*args, **kwargs)
+
     @Slot()
     def _change_resist(self):
-        self.__resist_info.setObject(self.dbresist)
+        resist = self.dbresist
+        if resist is not None:
+            self.__resist_info.setObject(resist)
+            self.__load_button.setEnabled(True)
+        else:
+            self.__load_button.setEnabled(False)
 
     @property
     def dbresist(self):
-        """:rtype: orm.Resist"""
-        name = str(self.__resist_list.currentItem().text())
-        return self.__appdb[orm.Resist].filter(orm.Resist.name == name).one()
+        """:rtype: orm.Resist or None"""
+        item = self.__resist_list.currentItem()
+        if item is None:
+            return None
+        name = str(item.text())
+        return self.__appdb[orm.Resist].filter(orm.Resist.name == name).first()
 
 
 class ResistExposureTab(AbstractResistTab):
@@ -758,6 +782,8 @@ class ResistView(QStackWidgetTab):
     def _load_resist(self):
         load_resist_dlg = LoadResistDialog(self.parent(), self.__appdb)
         if load_resist_dlg.exec_():
+            if load_resist_dlg.dbresist is None:
+                return
             # Make a clone of the resist to avoid undesired changes of it's properties in the database
             db_resist = load_resist_dlg.dbresist.clone()
             logging.info("Load resist: %s" % db_resist.name)
@@ -815,7 +841,7 @@ class ResistView(QStackWidgetTab):
         connect(self.__tab_widget.currentChanged, self.__onTabChanged)
 
     def _enumerate_tabs(self):
-        for k in xrange(self.__tab_widget.count()):
+        for k in range(self.__tab_widget.count()):
             yield self.__tab_widget.widget(k)
 
     # @property

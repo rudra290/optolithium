@@ -39,15 +39,28 @@ from config import APPLICATION_NAME, KILOBYTE, MEGABYTE, GIGABYTE
 from numpy import isnan
 from matplotlib import rcParams
 from matplotlib.colors import LinearSegmentedColormap
-from matplotlib.cm import register_cmap
 
-rcParams["backend.qt4"] = backend_name
+try:
+    from matplotlib import colormaps
+    register_cmap = colormaps.register
+except (ImportError, AttributeError):
+    try:
+        from matplotlib.cm import register_cmap
+    except (ImportError, AttributeError):
+        from matplotlib.pyplot import register_cmap
 
-# CAUTION: That's important not to import matplotlib because it sets up its own gui, mainloop and canvas.
-# Backend name PySide or PyQt4 is setup in matplotrc file
+try:
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+    from matplotlib.backends.backend_qtagg import NavigationToolbar2QT
+except ImportError:
+    try:
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
+    except ImportError:
+        from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT
+
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT
 
 import config
 import helpers
@@ -806,10 +819,10 @@ def calculate_table_width(table_widget):
     if table_widget.verticalHeader().isVisible():
         min_width += table_widget.verticalHeader().width()
 
-    for k in xrange(table_widget.horizontalHeader().count()):
+    for k in range(table_widget.horizontalHeader().count()):
         min_width += table_widget.columnWidth(k)
 
-    min_width += table_widget.verticalScrollBar().height()/2 + table_widget.frameWidth()
+    min_width += int(table_widget.verticalScrollBar().height() / 2) + table_widget.frameWidth()
 
     return min_width
 

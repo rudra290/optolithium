@@ -27,7 +27,7 @@ import logging as module_logging
 from copy import deepcopy
 from auxmath import cartesian
 from numpy import arange, array, ndarray, savetxt, NaN
-from cStringIO import StringIO
+from io import StringIO
 from config import COMMON_LINES_COLOR
 from qt import QtGui, QtCore, connect, disconnect, Signal, Slot
 from views.common import QObjectNumeric, QStackWidgetTab, QGraphPlot, calculate_table_width, msgBox, NavigationToolbar
@@ -56,7 +56,7 @@ def thread_name():
 
 
 def listify(data):
-    return [str(value) for index, value in sorted(data.iteritems())]
+    return [str(value) for index, value in sorted(data.items())]
 
 
 class AbstractGroupBox(QtGui.QGroupBox):
@@ -133,14 +133,14 @@ class InputVariablesTree(QtGui.QTreeWidget):
         return self.__nodes[index]
 
     def indx_by_variable(self, variable):
-        for indx, stored_variable in self.__nodes.iteritems():
+        for indx, stored_variable in self.__nodes.items():
             if variable.object == stored_variable.object:
                 return indx
         return None
 
     def lookup_item(self, check):
         def __search(_node):
-            for _k in xrange(_node.childCount()):
+            for _k in range(_node.childCount()):
                 _child = _node.child(_k)
                 # logging.info("Node = %s value = %s index = %r/%r" %
                 #              (_child.text(0), _child.text(1), _child.text(2), index))
@@ -151,7 +151,7 @@ class InputVariablesTree(QtGui.QTreeWidget):
                     return _result
             return None
 
-        for k in xrange(self.__root.childCount()):
+        for k in range(self.__root.childCount()):
             node = self.__root.child(k)
             result = __search(node)
             if result is not None:
@@ -267,7 +267,7 @@ class InputVariablesTree(QtGui.QTreeWidget):
         """
         name = composite.identifier if isinstance(composite, AbstractOptionsBase) else composite.name
         node = self.__add_header_node(root, name)
-        for name, field in composite.__dict__.iteritems():
+        for name, field in composite.__dict__.items():
             if isinstance(field, Variable):
                 self.__add_variable(node, field)
             elif isinstance(field, StandardObject):
@@ -304,13 +304,13 @@ class InputVariablesTree(QtGui.QTreeWidget):
 
     def set_expand_collapse_all(self, expand):
         def __recursive(_node):
-            for _k in xrange(_node.childCount()):
+            for _k in range(_node.childCount()):
                 _child = _node.child(_k)
                 __recursive(_child)
                 _child.setExpanded(expand)
             _node.setExpanded(expand)
 
-        for k in xrange(self.__root.childCount()):
+        for k in range(self.__root.childCount()):
             __recursive(self.__root.child(k))
 
 
@@ -383,7 +383,7 @@ class InputVariablesTable(QtGui.QTableWidget):
         self.__values = dict()
 
     def __reord_rows(self):
-        for k in xrange(self.rowCount()):
+        for k in range(self.rowCount()):
             ord_item = QtGui.QTableWidgetItem(str(k + 1))
             ord_item.setFlags(InputVariablesTable.READONLY)
             ord_item.setTextAlignment(QtCore.Qt.AlignRight)
@@ -434,7 +434,7 @@ class InputVariablesTable(QtGui.QTableWidget):
     }
 
     # noinspection PyPep8Naming
-    @Slot(QtGui.QTreeWidgetItem)
+    @Slot(QtGui.QTableWidgetItem)
     def onItemChanged(self, item):
         row = item.row()
         col = item.column()
@@ -571,7 +571,7 @@ class InputVariablesBox(AbstractGroupBox):
             name, index, variable = self.__input_variables_tree.check_variable(item)
             row = self.__input_variables_table.add_variable(name, index, variable)
             inv_map = {v: k for k, v in self.__input_variables_table.VALUES_DICT_MAP.items()}
-            for key, value in values.iteritems():
+            for key, value in values.items():
                 col = inv_map[key]
                 self.__input_variables_table.setItem(row, col, QtGui.QTableWidgetItem(str(value)))
 
@@ -612,7 +612,7 @@ class OutputVariableTree(QtGui.QTreeWidget):
             self.__root.addChild(node)
 
     def __item_by_name(self, stage_name):
-        for k in xrange(self.__root.childCount()):
+        for k in range(self.__root.childCount()):
             node = self.__root.child(k)
             if node.text(OutputVariableTree.NAME_COLUMN) == stage_name:
                 return node
@@ -887,7 +887,7 @@ class SimulationSetsControl(QtGui.QWidget):
         self.__progress_bar.setValue(0)
 
     # noinspection PyPep8Naming
-    @Slot(bool)
+    @Slot()
     def __onTaskDone(self):
         # logging.info("Simulation set done '%s'" % thread_name())
         self.wait_box.close()
@@ -1184,7 +1184,7 @@ class SimulationResultsTab(QStackWidgetTab):
         clipboard.setText(s.getvalue())
 
     # noinspection PyPep8Naming
-    @Slot()
+    @Slot(int)
     def __onItemChanged(self, index):
         self.__graph.setObject(self.__results, self.__results.stage.metrics[index], self.__sequence)
 

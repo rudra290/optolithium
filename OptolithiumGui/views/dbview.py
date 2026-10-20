@@ -117,7 +117,7 @@ class QDatabaseTreeWidget(QTreeWidgetDrag):
 
     @staticmethod
     def listify(data):
-        return [value for index, value in sorted(data.iteritems())]
+        return [value for index, value in sorted(data.items())]
 
     def __init__(self, parent, database):
         """
@@ -154,7 +154,7 @@ class QDatabaseTreeWidget(QTreeWidgetDrag):
         logging.info("Reload database objects")
         self.reload()
 
-        self.__undeleteable_items = {self.__root, self.__standard_root, self.__plugin_root}
+        self.__undeleteable_items = (self.__root, self.__standard_root, self.__plugin_root)
 
         logging.info("Configure actions")
         # Add item to database action
@@ -187,7 +187,7 @@ class QDatabaseTreeWidget(QTreeWidgetDrag):
     @staticmethod
     def __align_text_bottom(item):
         """:type item: QtGui.QTreeWidgetItem"""
-        for k in xrange(len(QDatabaseTreeWidget.HEADER)):
+        for k in range(len(QDatabaseTreeWidget.HEADER)):
             alignment = item.textAlignment(k) | QtCore.Qt.AlignBottom
             item.setTextAlignment(k, alignment)
 
@@ -237,7 +237,7 @@ class QDatabaseTreeWidget(QTreeWidgetDrag):
     def __get_item(self, p_object):
         """:type p_object: orm.Generic"""
         node = self.__nodes[p_object.title]
-        for k in xrange(node.childCount()):
+        for k in range(node.childCount()):
             item = node.child(k)
             if str(item.text(QDatabaseTreeWidget.NAME_COLUMN)) == p_object.name:
                 return item
@@ -292,8 +292,8 @@ class QDatabaseTreeWidget(QTreeWidgetDrag):
         # noinspection PyUnresolvedReferences
         if p_object is self and event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Delete:
             item = self.currentItem()
-            if item not in self.__undeleteable_items and item not in set(self.__nodes.values()):
-                name = unicode(item.text(QDatabaseTreeWidget.NAME_COLUMN))
+            if item not in self.__undeleteable_items and item not in list(self.__nodes.values()):
+                name = str(item.text(QDatabaseTreeWidget.NAME_COLUMN))
                 reply = QuestionBox(self, "Do you really want to delete it?")
                 if reply == msgBox.Yes:
                     for obj in self.__database.remove(name=name):

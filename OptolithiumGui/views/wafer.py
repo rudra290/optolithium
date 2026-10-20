@@ -145,6 +145,8 @@ class LoadMaterialDialog(QtGui.QDialog):
         self.__material_list.clear()
         for material in self.__appdb[orm.Material]:
             self.__material_list.addItem(material.name)
+        if self.__material_list.count() > 0:
+            self.__material_list.setCurrentRow(0)
 
     def showEvent(self, *args, **kwargs):
         self.update_materials()
@@ -167,8 +169,11 @@ class LoadMaterialDialog(QtGui.QDialog):
         if self.is_parametric:
             return None
 
-        name = str(self.__material_list.currentItem().text())
-        return self.__appdb[orm.Material].filter(orm.Material.name == name).one()
+        item = self.__material_list.currentItem()
+        if item is None:
+            return None
+        name = str(item.text())
+        return self.__appdb[orm.Material].filter(orm.Material.name == name).first()
 
     @property
     def is_item_selected(self):
@@ -214,6 +219,7 @@ class QProcessStackModel(QtCore.QAbstractTableModel):
         ("Name", ColumnDescriptor(index=2, name="Name", width=140, flags=READONLY)),
         ("Thickness", ColumnDescriptor(index=3, name="Thickness", width=70, flags=EDITABLE))
     ])
+    columns_list = tuple(columns.values())
     """:type: dict from str to QProcessStackModel.ColumnDescriptor"""
 
     def __init__(self, parent, wafer_process):
@@ -223,6 +229,10 @@ class QProcessStackModel(QtCore.QAbstractTableModel):
         """
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._wafer_process = wafer_process
+
+    def reset(self):
+        self.beginResetModel()
+        self.endResetModel()
 
     def __getitem__(self, item):
         """
@@ -258,7 +268,7 @@ class QProcessStackModel(QtCore.QAbstractTableModel):
     def headerData(self, section, orientation, role=None):
         if role == QtCore.Qt.DisplayRole:
             if orientation == QtCore.Qt.Horizontal:
-                return QProcessStackModel.columns.values()[section].name
+                return QProcessStackModel.columns_list[section].name
             elif orientation == QtCore.Qt.Vertical:
                 return str(len(self._wafer_process) - section)
         return None
@@ -278,7 +288,7 @@ class QProcessStackModel(QtCore.QAbstractTableModel):
            isinstance(self._wafer_process[index.row()], options.structures.Substrate):
             return QProcessStackModel.READONLY
 
-        return QProcessStackModel.columns.values()[index.column()].flags
+        return QProcessStackModel.columns_list[index.column()].flags
 
     def data(self, index, role=None):
         """
@@ -300,7 +310,7 @@ class QProcessStackModel(QtCore.QAbstractTableModel):
                     elif isinstance(stack_layer, options.structures.Substrate):
                         return None
             elif role == QtCore.Qt.SizeHintRole:
-                width = QProcessStackModel.columns.values()[index.column()].width
+                width = QProcessStackModel.columns_list[index.column()].width
                 return QtCore.QSize(width, QProcessStackModel.height)
             elif role == QtCore.Qt.BackgroundColorRole:
                 if index.column() == QProcessStackModel.columns["Step"]:
@@ -480,6 +490,8 @@ class QProcessStack(QtGui.QGroupBox):
     def insert_layer(self):
         logging.info("Insert layer")
         if self.__load_material_dlg.exec_():
+            if not self.__load_material_dlg.is_parametric and self.__load_material_dlg.material is None:
+                return
             logging.info("%s, parametric: %s" %
                          (self.__load_material_dlg.material,
                           self.__load_material_dlg.is_parametric))
@@ -632,6 +644,8 @@ class QProcessStepProperty(QtGui.QGroupBox):
 
     def _load_material(self):
         if self.__load_material_dlg.exec_():
+            if not self.__load_material_dlg.is_parametric and self.__load_material_dlg.material is None:
+                return
             # FIXME: Exception here self.__current_row IndexError
             wavelength = self.__data_model.resist.exposure.wavelength
             layer_class = type(self.__data_model[self.__current_row])

@@ -119,7 +119,7 @@ class SystemMemoryView(QtGui.QGroupBox):
         connect(self.__numerics.grid_z.signals[Abstract], self.__grid_updated)
         connect(self.__numerics.speed_factor.signals[Abstract], self.__speed_factor_updated)
 
-        usage = psutil.phymem_usage()
+        usage = psutil.virtual_memory()
         mem_ai_required = self.__calc_required_memory_ai()
         mem_3d_required = self.__calc_required_memory_3d()
         self.__mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")

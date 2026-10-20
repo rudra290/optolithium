@@ -423,8 +423,8 @@ class MaskView(QStackWidgetTab):
         self.__hlay.addSpacing(20)
         self.__hlay.addLayout(self.__plot_vlay)
 
-        self.__hlay.setStretchFactor(self.__parameters_vlay, 0.0)
-        self.__hlay.setStretchFactor(self.__plot_vlay, 2.0)
+        self.__hlay.setStretchFactor(self.__parameters_vlay, 0)
+        self.__hlay.setStretchFactor(self.__plot_vlay, 2)
 
         self.setObject(self.__mask.container)
 
