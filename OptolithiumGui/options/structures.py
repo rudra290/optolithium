@@ -94,7 +94,7 @@ class AbstractOptionsBase(QtCore.QObject, AbstractReportOption):
     changed = Signal()
 
     def __init__(self, *args, **kwargs):
-        super(AbstractOptionsBase, self).__init__(*args, **kwargs)
+        QtCore.QObject.__init__(self)
         self.__saved = True
         self.__simulated = True
 
@@ -375,7 +375,7 @@ class MaterialLayer(WaferStackLayer):
         :return: Refractive index real, image lists
         :rtype: list of float, list of float
         """
-        return zip(*self._material.data)
+        return list(zip(*self._material.data))
 
     # ------------------------------------------------------------------------------------------------------------------
     # These refraction properties are only appropriate for parametric object
@@ -585,7 +585,7 @@ class StandardLayer(MaterialLayer):
             return oplc.ConstantWaferLayer(oplc.SUBSTRATE_LAYER, self.thickness, real[0], imag[0])
 
 
-class Resist(AbstractOptionsBase, StandardLayer):
+class Resist(StandardLayer, AbstractOptionsBase):
     """Class redefined from database material to resist"""
 
     icon = "icons/Resist"
@@ -595,8 +595,8 @@ class Resist(AbstractOptionsBase, StandardLayer):
         :type material: orm.Resist
         :type thickness: float
         """
-        AbstractOptionsBase.__init__(self)
         StandardLayer.__init__(self, material, thickness)
+        AbstractOptionsBase.__init__(self)
 
     def connect_with(self, slot):
         super(Resist, self).connect_with(slot)
@@ -1666,6 +1666,18 @@ class Metrology(AbstractOptionsBase):
         return self
 
 
+def _normalize_bson(data):
+    if isinstance(data, bytes):
+        return data.decode("utf-8", errors="replace")
+    elif isinstance(data, dict):
+        return {_normalize_bson(k): _normalize_bson(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_normalize_bson(v) for v in data]
+    elif isinstance(data, tuple):
+        return tuple(_normalize_bson(v) for v in data)
+    return data
+
+
 class Options(AbstractOptionsBase):
 
     def __init__(self, numerics, wafer_process, mask, imaging_tool,
@@ -1862,7 +1874,7 @@ class Options(AbstractOptionsBase):
             return
 
         with open(path, "rb") as options_file:
-            data = bson.loads(options_file.read())
+            data = _normalize_bson(bson.loads(options_file.read()))
 
         # import json
         # logging.info("Parse data:\n%s" % json.dumps(data, indent=4))
@@ -1898,7 +1910,7 @@ class Options(AbstractOptionsBase):
         :rtype: Options
         """
         with open(path, "rb") as options_file:
-            data = bson.loads(options_file.read())
+            data = _normalize_bson(bson.loads(options_file.read()))
 
         # import json
         # logging.info("Load data:\n%s" % json.dumps(data, indent=4))

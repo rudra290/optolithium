@@ -21,7 +21,15 @@
 # If you are interested in other licensing models, including a commercial-
 # license, please contact the author at gladkikhalexei@gmail.com
 
-from options.structures import Options, OptionsLoadErrors
 from options.common import Abstract, Variable, Numeric, Enum
+
+def __getattr__(name):
+    if name in ("Options", "OptionsLoadErrors"):
+        import importlib
+        structures = importlib.import_module("options.structures")
+        return getattr(structures, name)
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+__author__ = 'Alexei Gladkikh'
 
 __author__ = 'Alexei Gladkikh'

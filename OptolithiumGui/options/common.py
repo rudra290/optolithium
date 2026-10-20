@@ -25,6 +25,11 @@ import logging as module_logging
 from database.base import SignalsMeta, Float, Integer, String
 import helpers
 
+try:
+    long
+except NameError:
+    long = int
+
 __author__ = 'Alexei Gladkikh'
 
 
@@ -85,6 +90,8 @@ class Abstract(object):
 
     def __set__(self, instance, value):
         real_type = self.__dtype.python_type
+        if isinstance(value, bytes) and real_type is str:
+            value = value.decode("utf-8", errors="replace")
         if not isinstance(value, real_type):
             raise TypeError("Option value of %s can be assigned only to %s type value (input is %s)" %
                             (instance.name, real_type.__name__, type(value).__name__))
@@ -116,15 +123,18 @@ class Enum(Abstract):
         if not isinstance(variants, list):
             raise TypeError("Variants input parameter must be list of the acceptable values")
 
-        if not all([isinstance(v, basestring) for v in variants]):
+        if not all([isinstance(v, (str, bytes)) for v in variants]):
             raise TypeError("Each variants member must be string type")
 
         self.__raise_constraint = raise_constraint
-        self.__variants = variants
+        self.__variants = [v.decode("utf-8") if isinstance(v, bytes) else str(v) for v in variants]
 
     def __set__(self, instance, value):
-        if not isinstance(value, basestring):
+        if not isinstance(value, (str, bytes)):
             raise TypeError("Value input parameter must be string")
+
+        if isinstance(value, bytes):
+            value = value.decode("utf-8", errors="replace")
 
         if value not in self.__variants:
             if self.__raise_constraint:
