@@ -1,0 +1,12 @@
+[optolithium-local]
+name=Optolithium Local Repository
+baseurl=file:///usr/share/optolithium/repo
+enabled=1
+gpgcheck=0
+
+# [optolithium-remote]
+# name=Optolithium Remote Repository
+# baseurl=https://your-domain.org/repos/el$releasever/$basearch/
+# enabled=1
+# gpgcheck=0
+

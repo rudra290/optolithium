@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Optolithium
+GenericName=Optical Lithography Simulator
+Comment=Modelling software for optical lithography simulation
+Exec=/usr/bin/optolithium %f
+Icon=optolithium
+Terminal=false
+Categories=Science;Engineering;Physics;Education;
+MimeType=application/x-optolithium;
+StartupNotify=true
+
