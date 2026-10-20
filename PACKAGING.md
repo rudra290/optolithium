@@ -1,107 +1,155 @@
-# Optolithium Packaging Guide (.rpm & DNF)
+# Optolithium Linux Packaging Guide (.rpm & .deb)
 
-This guide explains how to generate `.rpm` packages and configure DNF repositories for Optolithium on RPM-based Linux distributions (Rocky Linux, RHEL, CentOS Stream, Fedora, AlmaLinux, etc.).
+This guide explains how to generate **`.rpm`** (Fedora, RHEL, Rocky Linux) and **`.deb`** (Ubuntu, Debian, Linux Mint) packages and repositories for Optolithium.
 
 ---
 
-## 1. Quick Overview: RPM vs DNF
+## 1. Quick Overview
 
-- **`.rpm` (Red Hat Package Manager)**: The standard binary package file format for Fedora / RHEL / Rocky Linux systems. Contains compiled binaries, Python libraries, desktop shortcuts, icons, and metadata.
-- **DNF (Dandified YUM)**: The package manager command (`dnf install`, `dnf update`) used to install and manage `.rpm` files and their dependencies.
-- **`.repo`**: The repository configuration file format used by DNF (stored in `/etc/yum.repos.d/`) to discover and download `.rpm` packages from local or remote repositories.
+| Distribution Family | Package Format | Package Manager | Repository Config File | Repo Metadata Generator |
+|---|---|---|---|---|
+| **RHEL / Rocky / Fedora** | `.rpm` | `dnf` / `rpm` | `optolithium.repo` (`/etc/yum.repos.d/`) | `createrepo_c` |
+| **Debian / Ubuntu / Mint** | `.deb` | `apt` / `dpkg` | `optolithium.list` (`/etc/apt/sources.list.d/`) | `dpkg-scanpackages` / internal |
 
 ---
 
 ## 2. Quick Start: One-Click Build
 
-To build both the `.rpm` package and the DNF repository configuration:
+To build **both** `.rpm` and `.deb` packages as well as their repository configurations:
 
 ```bash
 ./build_packages.sh
 ```
 
-This will produce:
-- **RPM Package**: `dist/rpm/optolithium-0.3.0-1.el10.x86_64.rpm`
-- **DNF Repository**: `dist/dnf-repo/`
-- **DNF Repo Config**: `dist/optolithium.repo`
+### Targeted Builds:
+```bash
+# Build only RPM & DNF repo
+./build_packages.sh --rpm-only
+
+# Build only DEB & APT repo
+./build_packages.sh --deb-only
+
+# Bundle dedicated Python virtualenv for offline / air-gapped systems
+./build_packages.sh --bundle-venv
+```
 
 ---
 
-## 3. Building the `.rpm` Package
+## 3. Package Artifacts Output (`dist/`)
 
-The dedicated script `packaging/build_rpm.sh` wraps `rpmbuild` with custom staging and handles non-POSIX mounts (e.g. exFAT) by utilizing `/tmp`:
+After running the build, the artifacts are organized in `dist/`:
 
-### Standard / Slim Build (~2 MB)
-Packages the compiled C++ simulation engines, plugins, and Python GUI:
+```
+dist/
+├── dist/optolithium.repo             # DNF repository configuration
+├── dist/optolithium.list             # APT traditional source list
+├── dist/optolithium.sources          # APT modern DEB822 source file
+├── rpm/
+│   └── optolithium-0.3.0-1.el10.x86_64.rpm
+├── dnf-repo/
+│   ├── optolithium-0.3.0-1.el10.x86_64.rpm
+│   └── optolithium.repo
+├── deb/
+│   └── optolithium_0.3.0-1_amd64.deb
+└── apt-repo/
+    ├── optolithium_0.3.0-1_amd64.deb
+    ├── Packages
+    ├── Packages.gz
+    ├── Release
+    ├── optolithium.list
+    └── optolithium.sources
+```
+
+---
+
+## 4. Debian / Ubuntu (`.deb`) Guide
+
+### Building `.deb`
+Use the dedicated packaging script:
+```bash
+./packaging/build_deb.sh --slim
+```
+*Note: The script automatically detects whether `dpkg-deb` is installed. If not (e.g. running on Rocky/RHEL/Fedora), it automatically uses a portable internal standard `ar` + `tar` packager to produce a 100% compliant Debian binary package.*
+
+### Installing `.deb` on Debian / Ubuntu
+
+#### Option A: Direct Installation via APT (Recommended)
+```bash
+sudo apt install ./dist/deb/optolithium_0.3.0-1_amd64.deb
+```
+
+#### Option B: Direct Installation via dpkg
+```bash
+sudo dpkg -i ./dist/deb/optolithium_0.3.0-1_amd64.deb
+sudo apt-get install -f
+```
+
+#### Option C: Local APT Repository
+1. Generate APT repository metadata:
+   ```bash
+   ./packaging/create_apt_repo.sh
+   ```
+2. Add the repository to `/etc/apt/sources.list.d/`:
+   ```bash
+   sudo cp dist/optolithium.list /etc/apt/sources.list.d/
+   sudo apt update
+   sudo apt install optolithium
+   ```
+
+---
+
+## 5. RHEL / Rocky / Fedora (`.rpm`) Guide
+
+### Building `.rpm`
 ```bash
 ./packaging/build_rpm.sh --slim
 ```
 
-### Self-Contained Offline / Air-Gapped Build
-Packages Optolithium along with a dedicated pre-built Python virtual environment so no pip compilation or internet connection is required on target machines:
-```bash
-./packaging/build_rpm.sh --bundle-venv
-```
+### Installing `.rpm` with DNF
 
-### Options for `build_rpm.sh`
-- `--slim`: Build slim package (default).
-- `--bundle-venv`: Bundle complete Python virtualenv.
-- `--rebuild`: Force recompilation of C++ engine and plugins prior to packaging.
-- `--output-dir <path>`: Custom destination folder (default: `dist/rpm`).
-- `--version <x.y.z>`: Override package version.
-- `--release <num>`: Override release number (default: 1).
-
----
-
-## 4. Installing with DNF
-
-You can install the generated package on any Rocky Linux / RHEL / Fedora system using one of the following methods:
-
-### Method A: Direct DNF Installation (Fastest)
-DNF can directly resolve and install local `.rpm` files:
+#### Option A: Direct Installation via DNF (Recommended)
 ```bash
 sudo dnf install ./dist/rpm/optolithium-0.3.0-1.el10.x86_64.rpm
 ```
 
-### Method B: Install via Local DNF Repository
-1. Generate repository metadata and configuration:
+#### Option B: Local DNF Repository (`.repo` file)
+1. Generate DNF repository metadata:
    ```bash
    ./packaging/create_dnf_repo.sh
    ```
-2. Copy the generated `.repo` configuration into DNF's repository directory:
+2. Add repository configuration:
    ```bash
    sudo cp dist/optolithium.repo /etc/yum.repos.d/
-   ```
-3. Update DNF cache and install:
-   ```bash
    sudo dnf makecache
    sudo dnf install optolithium
    ```
 
-### Method C: One-off Install via `--repofrompath`
-```bash
-sudo dnf --repofrompath=optolithium,$(pwd)/dist/dnf-repo --nogpgcheck install optolithium
-```
-
 ---
 
-## 5. What the Package Installs
+## 6. Installed Files Structure
+
+Both packages install following standard Linux system conventions:
 
 | Path | Purpose |
 |---|---|
-| `/opt/optolithium/app/` | Python application, modules, views, resources |
-| `/opt/optolithium/app/*.so` | Compiled core C++ SWIG libraries (`_optolithiumc.so`, `_clipper.so`) |
+| `/opt/optolithium/app/` | Application codebase, views, options, resources |
+| `/opt/optolithium/app/*.so` | Core compiled C++ libraries (`_optolithiumc.so`, `_clipper.so`) |
 | `/opt/optolithium/app/plugins/` | All 13 compiled C++ lithography plugins |
 | `/opt/optolithium/bin/optolithium` | Smart launcher script |
 | `/usr/bin/optolithium` | Global command symlink |
 | `/usr/share/applications/optolithium.desktop` | Application menu desktop shortcut |
 | `/usr/share/icons/hicolor/128x128/apps/optolithium.png` | System application icon |
+| `/usr/share/pixmaps/optolithium.png` | System pixmap icon |
 
 ---
 
-## 6. Uninstalling
-To cleanly uninstall Optolithium using DNF:
-```bash
-sudo dnf remove optolithium
-```
+## 7. Uninstalling
 
+- **Debian / Ubuntu**:
+  ```bash
+  sudo apt remove optolithium
+  ```
+- **RHEL / Rocky / Fedora**:
+  ```bash
+  sudo dnf remove optolithium
+  ```

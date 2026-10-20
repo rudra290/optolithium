@@ -39,6 +39,26 @@ The launcher automatically detects and uses the dedicated Python virtual environ
 
 ---
 
+## Packaging for Linux (.rpm & .deb)
+
+Optolithium includes automated packaging tools to produce production installation packages and repositories:
+
+```bash
+# Build both .rpm and .deb packages
+./build_packages.sh
+
+# Or build individual targets:
+./build_packages.sh --rpm-only   # Builds .rpm and DNF repo
+./build_packages.sh --deb-only   # Builds .deb and APT repo
+```
+
+- **RHEL / Rocky / Fedora**: `sudo dnf install dist/rpm/optolithium-*.rpm`
+- **Debian / Ubuntu**: `sudo apt install ./dist/deb/optolithium_*.deb`
+
+For offline bundle builds and local repository setup, see [PACKAGING.md](PACKAGING.md).
+
+---
+
 ## Rebuilding from Source
 
 If you edit any C++ code or plugins:

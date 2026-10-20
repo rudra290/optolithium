@@ -52,18 +52,27 @@ To install the desktop application shortcut into your system application menu:
 cp Optolithium.desktop ~/.local/share/applications/
 ```
 
-### Installing via RPM Package (Fedora / RHEL / Rocky Linux / AlmaLinux)
+### Installing via Linux Packages (.rpm & .deb)
 
-You can build and install native RPM packages using the included packaging scripts:
+Optolithium provides automated packaging scripts for all major Linux distributions:
 
+#### Build Packages (One-Click):
 ```bash
-# Build the RPM package and local DNF repository
+# Builds both .rpm (DNF) and .deb (APT) packages
 ./build_packages.sh
+```
 
-# Install the generated RPM
+#### Install on Fedora / RHEL / Rocky Linux / AlmaLinux (.rpm):
+```bash
 sudo dnf install -y dist/rpm/optolithium-*.rpm
 ```
-For detailed packaging and repository setup instructions, see [PACKAGING.md](PACKAGING.md).
+
+#### Install on Ubuntu / Debian / Linux Mint (.deb):
+```bash
+sudo apt install -y ./dist/deb/optolithium_*.deb
+```
+
+For detailed repository configuration, offline/air-gapped bundle builds, and APT/DNF local repos, see [PACKAGING.md](PACKAGING.md).
 
 ---
 
