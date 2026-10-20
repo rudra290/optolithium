@@ -24,7 +24,7 @@
 import abc
 import os
 import re
-import StringIO
+from io import StringIO
 import numpy
 import logging as module_logging
 
@@ -33,7 +33,10 @@ import clipper
 import gdsii.library
 import gdsii.elements
 
-import orm
+try:
+    from database import orm
+except ImportError:
+    import orm
 import helpers
 
 
@@ -59,11 +62,13 @@ def txt2array(text, ndmin=1):
     :rtype: numpy.ndarray
     """
     # noinspection PyTypeChecker
-    return numpy.loadtxt(StringIO.StringIO(text), ndmin=ndmin)
+    return numpy.loadtxt(StringIO(text), ndmin=ndmin)
 
 
 class GenericParserError(Exception):
-    pass
+    @property
+    def message(self):
+        return str(self)
 
 
 class UnableParseError(GenericParserError):
@@ -161,7 +166,7 @@ class ProlithParser(ParserInterface):
     # It's a witchcraft be carefully... I was near to tear it into shreds...
     SECTIONS_PATTERN = re.compile(r"""\[Version](?:\r\n?|\n)(?P<Version>[^\[]*)
 \[Parameters](?:\r\n?|\n)(?P<Parameters>[^\[]*)
-(?:\[(?i)Data](?:\r\n?|\n)(?P<Data>[^\[]*))?
+(?:\[[Dd][Aa][Tt][Aa]](?:\r\n?|\n)(?P<Data>[^\[]*))?
 (?:\[Comments](?:\r\n?|\n)(?P<Comments>[^\[]*))?
 (?:\[Develop\sParameters](?:\r\n?|\n)(?P<Develop>[^\[]*))?
 (?:\[PAB\sParameters](?:\r\n?|\n)(?P<PAB>[^\[]*))?
@@ -456,7 +461,7 @@ class ProlithParser(ParserInterface):
         except StopIteration:
             raise WrongParserError
 
-        for key, value in sections.iteritems():
+        for key, value in sections.items():
             if value is not None:
                 sections[key] = value.strip()
 

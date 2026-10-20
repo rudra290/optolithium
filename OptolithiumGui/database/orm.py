@@ -42,7 +42,14 @@ from sqlalchemy.orm import relationship, backref, RelationshipProperty, ColumnPr
 from sqlalchemy.schema import CheckConstraint, UniqueConstraint, DDL
 from sqlalchemy.ext.declarative import declared_attr, declarative_base
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.ext.hybrid import hybrid_property
+class hybrid_property(object):
+    def __init__(self, fget):
+        self.fget = fget
+
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self.fget(owner)
+        return self.fget(instance)
 
 from database.base import Column, SignalsMeta, Integer, Float, String, DateTime, Boolean
 
@@ -57,7 +64,10 @@ from auxmath import cartesian, point_inside_polygon
 import optolithiumc as oplc
 
 import config
-import Enum
+try:
+    from database import Enum
+except ImportError:
+    import Enum
 import helpers
 import pcpi
 import physc
@@ -1856,11 +1866,11 @@ class ConcretePluginMask(ConcretePluginCommon):
         self.__mask_struct.boundary.transmittance = self.__transmittance
         self.__mask_struct.boundary.phase = self.__phase
         # Returns regions generator
-        for k in xrange(self.__mask_struct.regions_count):
+        for k in range(self.__mask_struct.regions_count):
             r = self.__mask_struct.regions[k]
             yield Region(
                 transmittance=r.transmittance, phase=r.phase, shape=GeometryShape.Polygon,
-                points=[Point(r.points[k].x, r.points[k].y) for k in xrange(r.length)])
+                points=[Point(r.points[k].x, r.points[k].y) for k in range(r.length)])
 
     def _get_background(self):
         return self.__mask_struct.boundary.transmittance
@@ -2253,7 +2263,7 @@ class PebParameters(Base):
         :param float or list of float or numpy.ndarray temp: Temperature in C
         :rtype: float
         """
-        if isinstance(temp, list):
+        if isinstance(temp, (list, tuple, range)):
             temp = np.array(temp, dtype=float)
         tempk = temp - physc.T0
         return np.exp(self.ln_ar - self.ea/(physc.R*tempk))
@@ -2712,7 +2722,6 @@ class Info(Base):
         self.created = datetime.datetime.now()
 
     def __str__(self):
-        print self.appname, self.version, self.created
         return "%s DB v.%d created %s" % (self.appname, self.version, self.created)
 
 

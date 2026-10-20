@@ -25,7 +25,10 @@ import os
 import logging as module_logging
 from database import dbparser
 
-import orm
+try:
+    from database import orm
+except ImportError:
+    import orm
 
 import config
 import helpers
@@ -64,6 +67,10 @@ class ApplicationDatabase(object):
     class OperationError(Exception):
         def __init__(self, *args, **kwargs):
             super(ApplicationDatabase.OperationError, self).__init__(*args, **kwargs)
+
+        @property
+        def message(self):
+            return str(self)
 
     class SqlError(OperationError):
         def __init__(self, *args, **kwargs):
@@ -167,7 +174,7 @@ class ApplicationDatabase(object):
         with open(path, "rb") as db_file:
             header = db_file.read(100)
 
-        if header[0:16] != "SQLite format 3\x00":
+        if header[0:16] != b"SQLite format 3\x00":
             raise ApplicationDatabase.OperationError("Wrong SQLite header! (Most possible file is not SQLite database)")
 
     @staticmethod
@@ -184,7 +191,7 @@ class ApplicationDatabase(object):
 
     @staticmethod
     def _check_columns(inspector):
-        for table_name, orm_table in orm.tables.iteritems():
+        for table_name, orm_table in orm.tables.items():
             orm_columns = ["%s" % column for column in orm_table.columns]
             db_columns = ["%s.%s" % (table_name, d["name"]) for d in inspector.get_columns(table_name)]
 

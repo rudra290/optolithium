@@ -24,7 +24,10 @@ from sqlalchemy.orm import RelationshipProperty
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
 import logging as module_logging
-import settings
+try:
+    from database import settings
+except ImportError:
+    import settings
 import helpers
 
 
@@ -65,7 +68,7 @@ class SignalsMeta(DeclarativeMeta):
     # noinspection PyPep8Naming
     @staticmethod
     def SignalsAttrName(arg):
-        classname = arg if isinstance(arg, basestring) else arg.__class__.__name__
+        classname = arg if isinstance(arg, (str, bytes)) else arg.__class__.__name__
         return "%s.%s" % (classname, SignalsMeta.SIGNAL_CLASS_SUFFIX)
 
     class AbstractSignalsClass(GuiObjectClass):
