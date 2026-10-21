@@ -36,7 +36,7 @@ class EnumMeta(type):
     def __init__(cls, classname, bases, dict_):
         cls._reg = reg = cls._reg.copy()
         for k, v in dict_.items():
-            if isinstance(v, tuple):
+            if not k.startswith("__") and isinstance(v, tuple) and len(v) >= 2:
                 sym = reg[v[0]] = EnumSymbol(cls, k, *v)
                 setattr(cls, k, sym)
         # noinspection PyReturnFromInit

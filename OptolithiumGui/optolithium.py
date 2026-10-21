@@ -27,6 +27,7 @@ import logging as module_logging
 import sys
 import webbrowser
 import psutil
+import config
 
 from qt import QtCore, QtGui, connect, Slot, backend_name
 from qt import core_version as QtCoreVersion

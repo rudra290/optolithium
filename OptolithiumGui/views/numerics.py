@@ -115,13 +115,13 @@ class SystemMemoryView(QtGui.QGroupBox):
         self.__resist = resist
         self.__numerics = numerics
 
-        connect(self.__numerics.grid_xy.signals[Abstract], self.__grid_updated)
-        connect(self.__numerics.grid_z.signals[Abstract], self.__grid_updated)
-        connect(self.__numerics.speed_factor.signals[Abstract], self.__speed_factor_updated)
+        connect(self.__numerics.grid_xy.signals[Abstract], self._grid_updated)
+        connect(self.__numerics.grid_z.signals[Abstract], self._grid_updated)
+        connect(self.__numerics.speed_factor.signals[Abstract], self._speed_factor_updated)
 
         usage = psutil.virtual_memory()
-        mem_ai_required = self.__calc_required_memory_ai()
-        mem_3d_required = self.__calc_required_memory_3d()
+        mem_ai_required = self._calc_required_memory_ai()
+        mem_3d_required = self._calc_required_memory_3d()
         self.__mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")
         self.__mem_free = Variable(Numeric(dtype=float), value=float(usage.free), name="FreeMemory")
         self.__mem_total = Variable(Numeric(dtype=float), value=float(usage.total), name="TotalMemory")
@@ -144,28 +144,28 @@ class SystemMemoryView(QtGui.QGroupBox):
         self.__layout.addStretch()
 
         self.__mem_update_timer = QtCore.QTimer(self)
-        connect(self.__mem_update_timer.timeout, self.__update_memory)
+        connect(self.__mem_update_timer.timeout, self._update_memory)
         self.__mem_update_timer.start(config.Configuration.memory_update_interval)
 
-        self.__grid_updated()
+        self._grid_updated()
 
     # noinspection PyPep8Naming
     def setObject(self, options):
         self.__mask = options.mask
         self.__resist = options.wafer_process.resist
-        self.__grid_updated()
+        self._grid_updated()
 
     @Slot()
-    def __speed_factor_updated(self):
+    def _speed_factor_updated(self):
         self.__source_shape_grid.value = self.__numerics.source_stepxy
 
     @Slot()
-    def __grid_updated(self):
-        self.__update_memory()
-        self.__mem_ai_required.value = self.__calc_required_memory_ai()
-        self.__mem_3d_required.value = self.__calc_required_memory_3d()
+    def _grid_updated(self):
+        self._update_memory()
+        self.__mem_ai_required.value = self._calc_required_memory_ai()
+        self.__mem_3d_required.value = self._calc_required_memory_3d()
 
-    def __calc_required_memory_ai(self):
+    def _calc_required_memory_ai(self):
         # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
         sizes = self.__mask.container.boundary[1] - self.__mask.container.boundary[0]
 
@@ -174,13 +174,13 @@ class SystemMemoryView(QtGui.QGroupBox):
 
         return self.double_precision * vx * vy
 
-    def __calc_required_memory_3d(self):
+    def _calc_required_memory_3d(self):
         # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
         vz = self.__resist.thickness / self.__numerics.grid_z.value + 1.0
-        return self.stages_count * self.__calc_required_memory_ai() * vz
+        return self.stages_count * self._calc_required_memory_ai() * vz
 
     @Slot()
-    def __update_memory(self):
+    def _update_memory(self):
         usage = psutil.virtual_memory()
         self.__mem_used.value = float(usage.used)
         self.__mem_free.value = float(usage.available)
