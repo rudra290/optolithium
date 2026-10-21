@@ -75,8 +75,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Verify rpmbuild tool
-if ! command -v rpmbuild >/dev/null 2>&1; then
+# Verify rpmbuild tool (check system or bundled tool)
+RPMBUILD_BIN=""
+if command -v rpmbuild >/dev/null 2>&1; then
+    RPMBUILD_BIN="$(command -v rpmbuild)"
+elif [ -x "$REPO_DIR/packaging/tools/rpmbuild" ]; then
+    RPMBUILD_BIN="$REPO_DIR/packaging/tools/rpmbuild"
+else
     echo "Error: 'rpmbuild' is required but not installed." >&2
     echo "Install it with: sudo dnf install -y rpm-build" >&2
     exit 1
@@ -125,11 +130,17 @@ mkdir -p "$STAGING/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "$STAGING/usr/share/pixmaps"
 
 if [ "$USE_NUITKA" = true ]; then
-    echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
-    NUITKA_OUT="$RPM_TMP_DIR/nuitka"
-    bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
-    mkdir -p "$INSTALL_OPT"
-    cp -a "$NUITKA_OUT/optolithium.dist"/* "$INSTALL_OPT/"
+    if [ -d "$REPO_DIR/dist/nuitka/optolithium.dist" ] && [ "$FORCE_REBUILD" = false ]; then
+        echo "==> Using existing Nuitka standalone build from dist/nuitka/optolithium.dist..."
+        mkdir -p "$INSTALL_OPT"
+        cp -a "$REPO_DIR/dist/nuitka/optolithium.dist"/* "$INSTALL_OPT/"
+    else
+        echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
+        NUITKA_OUT="$RPM_TMP_DIR/nuitka"
+        bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
+        mkdir -p "$INSTALL_OPT"
+        cp -a "$NUITKA_OUT/optolithium.dist"/* "$INSTALL_OPT/"
+    fi
     ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
 else
     # 1. Copy application files (excluding Windows binaries, temporary caches, and logs)
@@ -215,7 +226,7 @@ EXTRA_RPM_ARGS=()
 
 QA_RPATHS=0x002f \
 QA_SKIP_BUILD_ROOT=1 \
-rpmbuild \
+"$RPMBUILD_BIN" \
     --define "_topdir $RPM_TMP_DIR" \
     --define "_tmppath /tmp" \
     --define "pkg_version $VERSION" \

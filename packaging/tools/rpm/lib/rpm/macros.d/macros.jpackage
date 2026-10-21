@@ -1,0 +1,77 @@
+#
+# RPM macros for Java applications.
+#
+# JPackage Project  <http://www.jpackage.org/>
+#   David Walluck   <david@jpackage.org>
+#   Ville Skyttä    <scop at jpackage.org>
+#   Nicolas Mailhot <Nicolas.Mailhot@laPoste.net>
+#
+
+#==============================================================================
+# ---- default Java commands
+
+%ant            %{?jpb_env} %{?java_home:JAVA_HOME=%{java_home}} ant
+%jar            %{?java_home:%{java_home}/bin/}jar
+%java           %{?java_home:%{java_home}/bin/}java
+%javac          %{?java_home:%{java_home}/bin/}javac
+%javadoc        %{?java_home:%{java_home}/bin/}javadoc
+
+
+#
+# Standard JPackage script
+#
+# This is kind of tasteless and should be moved to an external template
+#
+# %1    main class
+# %2    flags
+# %3    options
+# %4    jars (separated by ':')
+# %5    the name of script you wish to create
+#
+%jpackage_script() \
+install -d -m 755 %{buildroot}%{_bindir} \
+cat > %{buildroot}%{_bindir}/%5 << EOF \
+#!/bin/bash\
+#\
+# %{name} script\
+# JPackage Project <http://www.jpackage.org/>\
+%{?java_home:\
+# Set default JAVA_HOME\
+JAVA_HOME="\\${JAVA_HOME:-%{java_home}}"\
+}\
+# Source functions library\
+. /usr/share/java-utils/java-functions\
+\
+# Source system prefs\
+if [ -f %{_sysconfdir}/java/%{name}.conf ] ; then\
+  . %{_sysconfdir}/java/%{name}.conf\
+fi\
+\
+# Source user prefs\
+if [ -f \\$HOME/.%{name}rc ] ; then\
+  . \\$HOME/.%{name}rc\
+fi\
+\
+# Configuration\
+MAIN_CLASS=%1\
+BASE_FLAGS=%2\
+BASE_OPTIONS=%3\
+BASE_JARS="%(echo %4 | sed -e 's,:, ,g')"\
+\
+# Set parameters\
+set_classpath \\$BASE_JARS\
+set_flags \\$BASE_FLAGS\
+set_options \\$BASE_OPTIONS\
+\
+# Let's start\
+run "\\$@"\
+EOF\
+chmod 755 %{buildroot}%{_bindir}/%5\
+%{nil}
+
+
+#
+# Creates binding subpackages
+# EXPERIMENTAL, subject to change or removal
+#
+%jp_binding /usr/share/java-utils/jp_binding.sh --rpm-name %{name}

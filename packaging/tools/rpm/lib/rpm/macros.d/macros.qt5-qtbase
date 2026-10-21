@@ -1,0 +1,4 @@
+%_qt5 qt5-qtbase
+%_qt5_epoch 0
+%_qt5_version 5.15.18
+%_qt5_evr 5.15.18-3.fc44

@@ -1,0 +1,5 @@
+#!/bin/bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export RPM_CONFIGDIR="$DIR/rpm/lib/rpm"
+export PATH="$DIR/rpm/bin:$PATH"
+exec "$DIR/rpm/bin/rpmbuild" "$@"

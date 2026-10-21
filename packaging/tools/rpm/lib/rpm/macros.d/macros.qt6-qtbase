@@ -1,0 +1,4 @@
+%_qt6 qt6-qtbase
+%_qt6_epoch 0
+%_qt6_version 6.11.2
+%_qt6_evr 6.11.2-3.fc44

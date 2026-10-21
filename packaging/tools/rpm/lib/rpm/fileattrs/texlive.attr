@@ -1,0 +1,3 @@
+%__texlive_path          ^/usr/share/texlive/texmf-dist/.*\\.(4ht|afm|bbx|bg2|bst|bug|cbx|cfg|clo|cls|csv|cnf|dat|dbx|def|enc|eps|fd|icc|ini|lbx|ldf|lua|map|mf|mp|otf|pfa|pfb|pro|sty|tex|tfm|ttf|vf)$
+%__texlive_exclude_path  ^/usr/share/texlive/texmf-dist/doc/
+%__texlive_provides()    tex(%{basename:%{1}}) = 2026
