@@ -177,6 +177,21 @@ if [ "$BUNDLE_VENV" = true ]; then
         --exclude="share/doc" \
         --exclude="share/man" \
         "$DEFAULT_VENV/" "$INSTALL_OPT/venv/"
+
+    # Ensure interpreter symlinks point to the versioned python binary (e.g. /usr/bin/python3.12)
+    # rather than generic /usr/bin/python3 which may be an ABI-incompatible version on user systems.
+    PY_VER_TAG=""
+    for d in "$INSTALL_OPT/venv"/lib/python3.*; do
+        if [ -d "$d" ]; then
+            PY_VER_TAG="$(basename "$d")"
+            break
+        fi
+    done
+    if [ -n "$PY_VER_TAG" ]; then
+        ln -sf "/usr/bin/$PY_VER_TAG" "$INSTALL_OPT/venv/bin/$PY_VER_TAG"
+        ln -sf "$PY_VER_TAG" "$INSTALL_OPT/venv/bin/python3"
+        ln -sf "python3" "$INSTALL_OPT/venv/bin/python"
+    fi
 fi
 
 echo "==> Running rpmbuild..."
@@ -187,6 +202,7 @@ rpmbuild \
     --define "_tmppath /tmp" \
     --define "pkg_version $VERSION" \
     --define "pkg_release $RELEASE" \
+    --define "py_version ${PY_VER_TAG:-python3.12}" \
     --define "staged_root $STAGING" \
     -bb "$SPEC_FILE"
 
