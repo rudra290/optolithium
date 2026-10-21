@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-TOOL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export LD_LIBRARY_PATH="$TOOL_DIR/lib64:${LD_LIBRARY_PATH:-}"
-export WIXL_INCLUDE_DIR="$TOOL_DIR/share/wixl-0.106/include"
-exec "$TOOL_DIR/bin/wixl" -I "$TOOL_DIR/share/wixl-0.106/include" "$@"
+#!/bin/bash
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export LD_LIBRARY_PATH="$DIR/lib64:${LD_LIBRARY_PATH:-}"
+export WIXL_DATA_DIR="$DIR/share/wixl-0.106"
+exec "$DIR/bin/wixl" "$@"
