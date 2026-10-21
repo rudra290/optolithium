@@ -84,6 +84,6 @@ If you edit any C++ code or plugins:
 You can run an automated end-to-end simulation test across all 8 lithography simulation stages:
 
 ```bash
-/home/rudra/.cache/optolithium/venv/bin/python test_full_simulation.py
+~/.cache/optolithium/venv/bin/python test_full_simulation.py
 ```
 
