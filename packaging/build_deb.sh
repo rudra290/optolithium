@@ -8,6 +8,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="$REPO_DIR/dist/deb"
 DEFAULT_VENV="${OPTOLITHIUM_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
 
+USE_NUITKA=false
 BUNDLE_VENV=true
 FORCE_REBUILD=false
 VERSION=""
@@ -19,6 +20,7 @@ print_usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
+  --nuitka          Compile with Nuitka into a 100% standalone native binary (zero Python runtime dependency)
   --standalone      Build fully self-contained zero-dependency DEB (default)
   --slim            Build slim DEB without bundling Python venv (requires internet/user venv)
   --bundle-venv     Bundle Python virtual environment (same as --standalone)
@@ -32,6 +34,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --nuitka)
+            USE_NUITKA=true
+            BUNDLE_VENV=false
+            shift
+            ;;
         --standalone|--bundle-venv)
             BUNDLE_VENV=true
             shift
@@ -113,32 +120,41 @@ INSTALL_APP="$STAGING/opt/optolithium/app"
 INSTALL_BIN="$STAGING/opt/optolithium/bin"
 INSTALL_LIB="$STAGING/opt/optolithium/lib"
 
-# 1. Copy application files
-rsync -a \
-    --exclude="*.dll" \
-    --exclude="*.exe" \
-    --exclude="__pycache__" \
-    --exclude="*.pyc" \
-    --exclude="*.pyo" \
-    --exclude="logs" \
-    --exclude="icons_sources" \
-    --exclude=".vscode" \
-    --exclude=".venv" \
-    "$REPO_DIR/OptolithiumGui/" "$INSTALL_APP/"
+if [ "$USE_NUITKA" = true ]; then
+    echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
+    NUITKA_OUT="$TMP_BUILD_DIR/nuitka"
+    bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
+    mkdir -p "$STAGING/opt/optolithium"
+    cp -a "$NUITKA_OUT/optolithium.dist"/* "$STAGING/opt/optolithium/"
+    ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
+else
+    # 1. Copy application files
+    rsync -a \
+        --exclude="*.dll" \
+        --exclude="*.exe" \
+        --exclude="__pycache__" \
+        --exclude="*.pyc" \
+        --exclude="*.pyo" \
+        --exclude="logs" \
+        --exclude="icons_sources" \
+        --exclude=".vscode" \
+        --exclude=".venv" \
+        "$REPO_DIR/OptolithiumGui/" "$INSTALL_APP/"
 
-# 2. Bundle native system libraries (e.g. libfftw3)
-for lib in /lib64/libfftw3.so* /usr/lib64/libfftw3.so*; do
-    if [ -f "$lib" ]; then
-        cp -a "$lib" "$INSTALL_LIB/" 2>/dev/null || true
-    fi
-done
+    # 2. Bundle native system libraries (e.g. libfftw3)
+    for lib in /lib64/libfftw3.so* /usr/lib64/libfftw3.so*; do
+        if [ -f "$lib" ]; then
+            cp -a "$lib" "$INSTALL_LIB/" 2>/dev/null || true
+        fi
+    done
 
-# 3. Launcher script
-cp -f "$REPO_DIR/packaging/optolithium-launcher.sh" "$INSTALL_BIN/optolithium"
-chmod 755 "$INSTALL_BIN/optolithium"
+    # 3. Launcher script
+    cp -f "$REPO_DIR/packaging/optolithium-launcher.sh" "$INSTALL_BIN/optolithium"
+    chmod 755 "$INSTALL_BIN/optolithium"
 
-# 4. /usr/bin symlink
-ln -sf /opt/optolithium/bin/optolithium "$STAGING/usr/bin/optolithium"
+    # 4. /usr/bin symlink
+    ln -sf /opt/optolithium/bin/optolithium "$STAGING/usr/bin/optolithium"
+fi
 
 # 5. Desktop entry
 cp -f "$REPO_DIR/packaging/optolithium.desktop" "$STAGING/usr/share/applications/optolithium.desktop"
@@ -190,7 +206,12 @@ fi
 INSTALLED_SIZE="$(du -sk --exclude="./DEBIAN" "$STAGING" | cut -f1)"
 
 # 8. Create Debian control file with proper dependencies
-DEB_PY_DEP="${PY_VER_TAG:-python3.12}"
+if [ "$USE_NUITKA" = true ]; then
+    DEB_DEPS="libc6 (>= 2.31)"
+else
+    DEB_DEPS="libc6 (>= 2.31), ${PY_VER_TAG:-python3.12}"
+fi
+
 cat << EOF > "$STAGING/DEBIAN/control"
 Package: optolithium
 Version: ${VERSION}-${RELEASE}
@@ -199,7 +220,7 @@ Priority: optional
 Architecture: ${ARCH}
 Installed-Size: ${INSTALLED_SIZE}
 Maintainer: Alexei Gladkikh <gladkikhalexei@gmail.com>
-Depends: libc6 (>= 2.31), ${DEB_PY_DEP}
+Depends: ${DEB_DEPS}
 Homepage: https://bitbucket.org/gladkikhalexei/lithography
 Description: Modern Optical Lithography Simulation Suite (Standalone Zero-Dependency)
  Optolithium is an optical lithography simulation and modeling software suite.

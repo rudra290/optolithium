@@ -272,9 +272,25 @@ def openLayerMapConfig(path):
     GdsLayerMapping = LayerMapConfig(path)
 
 
+def _detect_base_dir():
+    """Detect base application directory supporting both standard script execution and Nuitka/frozen standalone binaries."""
+    candidates = []
+    if getattr(sys, 'frozen', False) or hasattr(sys, '__compiled__'):
+        candidates.append(os.path.dirname(os.path.abspath(sys.executable)))
+    try:
+        candidates.append(os.path.dirname(os.path.abspath(__file__)))
+    except NameError:
+        pass
+    for c in candidates:
+        if os.path.isdir(os.path.join(c, "plugins")) or os.path.isdir(os.path.join(c, "icons")):
+            return c
+    return candidates[0] if candidates else os.path.abspath(".")
+
+BASE_DIR = _detect_base_dir()
+
 class _Configuration(object):
 
-    SYSTEM_PLUGINS_PATH = os.path.join(os.path.dirname(__file__), "plugins")
+    SYSTEM_PLUGINS_PATH = os.path.join(BASE_DIR, "plugins")
     PLUGIN_PATHS_SEPARATOR = ";"
 
     __ERROR_CONFIG_NOT_INIT_MSG__ = "Configuration was not initialized"

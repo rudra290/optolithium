@@ -32,7 +32,9 @@ from qt import QtCore, QtGui, connect, Slot, backend_name
 from qt import core_version as QtCoreVersion
 from qt import version as QtBackendVersion
 
-os.environ["MATPLOTLIBDATA"] = os.path.join(os.path.abspath(os.curdir), "mpl-data")
+_mpl_dir = os.path.join(getattr(config, "BASE_DIR", os.path.dirname(os.path.abspath(__file__))), "mpl-data")
+if os.path.isdir(_mpl_dir):
+    os.environ["MATPLOTLIBDATA"] = _mpl_dir
 from matplotlib import __version__ as matplotlib_version
 
 from views.controls import ControlBar, ControlsView
@@ -86,7 +88,7 @@ class AboutWindow(QtGui.QDialog):
         self.setWindowTitle("About")
         self.setWindowIcon(parent.windowIcon())
 
-        gui_dir = os.path.dirname(os.path.abspath(__file__))
+        gui_dir = getattr(config, "BASE_DIR", os.path.dirname(os.path.abspath(__file__)))
         logo_banner = os.path.join(gui_dir, "icons", "Banner.png")
         self.__program_banner = QtGui.QLabel(self)
         self.__program_banner.setPixmap(QtGui.QPixmap(logo_banner))
@@ -160,7 +162,7 @@ class MainWindow(QtGui.QMainWindow):
     def __init__(self):
         QtGui.QMainWindow.__init__(self)
         
-        gui_dir = os.path.dirname(os.path.abspath(__file__))
+        gui_dir = getattr(config, "BASE_DIR", os.path.dirname(os.path.abspath(__file__)))
         Resources.load(gui_dir, ["icons", "xhtml"], icon_driver=QtGui.QIcon)
 
         self.tabs = dict()

@@ -9,6 +9,7 @@ SPEC_FILE="$REPO_DIR/packaging/optolithium.spec"
 OUTPUT_DIR="$REPO_DIR/dist/rpm"
 DEFAULT_VENV="${OPTOLITHIUM_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
 
+USE_NUITKA=false
 BUNDLE_VENV=true
 FORCE_REBUILD=false
 VERSION=""
@@ -19,6 +20,7 @@ print_usage() {
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
+  --nuitka          Compile with Nuitka into a 100% standalone native binary (zero Python runtime dependency)
   --standalone      Build fully self-contained zero-dependency RPM (default)
   --slim            Build slim RPM without bundling Python venv (requires internet/user venv)
   --bundle-venv     Bundle Python virtual environment (same as --standalone)
@@ -32,6 +34,11 @@ EOF
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --nuitka)
+            USE_NUITKA=true
+            BUNDLE_VENV=false
+            shift
+            ;;
         --standalone|--bundle-venv)
             BUNDLE_VENV=true
             shift
@@ -117,32 +124,41 @@ mkdir -p "$STAGING/usr/share/applications"
 mkdir -p "$STAGING/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "$STAGING/usr/share/pixmaps"
 
-# 1. Copy application files (excluding Windows binaries, temporary caches, and logs)
-rsync -a \
-    --exclude="*.dll" \
-    --exclude="*.exe" \
-    --exclude="__pycache__" \
-    --exclude="*.pyc" \
-    --exclude="*.pyo" \
-    --exclude="logs" \
-    --exclude="icons_sources" \
-    --exclude=".vscode" \
-    --exclude=".venv" \
-    "$REPO_DIR/OptolithiumGui/" "$INSTALL_APP/"
+if [ "$USE_NUITKA" = true ]; then
+    echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
+    NUITKA_OUT="$RPM_TMP_DIR/nuitka"
+    bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
+    mkdir -p "$INSTALL_OPT"
+    cp -a "$NUITKA_OUT/optolithium.dist"/* "$INSTALL_OPT/"
+    ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
+else
+    # 1. Copy application files (excluding Windows binaries, temporary caches, and logs)
+    rsync -a \
+        --exclude="*.dll" \
+        --exclude="*.exe" \
+        --exclude="__pycache__" \
+        --exclude="*.pyc" \
+        --exclude="*.pyo" \
+        --exclude="logs" \
+        --exclude="icons_sources" \
+        --exclude=".vscode" \
+        --exclude=".venv" \
+        "$REPO_DIR/OptolithiumGui/" "$INSTALL_APP/"
 
-# 2. Bundle native system libraries (e.g. libfftw3)
-for lib in /lib64/libfftw3.so* /usr/lib64/libfftw3.so*; do
-    if [ -f "$lib" ]; then
-        cp -a "$lib" "$INSTALL_LIB/" 2>/dev/null || true
-    fi
-done
+    # 2. Bundle native system libraries (e.g. libfftw3)
+    for lib in /lib64/libfftw3.so* /usr/lib64/libfftw3.so*; do
+        if [ -f "$lib" ]; then
+            cp -a "$lib" "$INSTALL_LIB/" 2>/dev/null || true
+        fi
+    done
 
-# 3. Copy launcher script
-cp -f "$REPO_DIR/packaging/optolithium-launcher.sh" "$INSTALL_BIN/optolithium"
-chmod +x "$INSTALL_BIN/optolithium"
+    # 3. Copy launcher script
+    cp -f "$REPO_DIR/packaging/optolithium-launcher.sh" "$INSTALL_BIN/optolithium"
+    chmod +x "$INSTALL_BIN/optolithium"
 
-# 4. Create wrapper symlink in /usr/bin
-ln -sf /opt/optolithium/bin/optolithium "$STAGING/usr/bin/optolithium"
+    # 4. Create wrapper symlink in /usr/bin
+    ln -sf /opt/optolithium/bin/optolithium "$STAGING/usr/bin/optolithium"
+fi
 
 # 5. Desktop entry
 cp -f "$REPO_DIR/packaging/optolithium.desktop" "$STAGING/usr/share/applications/optolithium.desktop"
@@ -195,6 +211,13 @@ if [ "$BUNDLE_VENV" = true ]; then
 fi
 
 echo "==> Running rpmbuild..."
+EXTRA_RPM_ARGS=()
+if [ "$USE_NUITKA" = true ]; then
+    EXTRA_RPM_ARGS+=(--define "without_py_requires 1")
+else
+    EXTRA_RPM_ARGS+=(--define "py_version ${PY_VER_TAG:-python3.12}")
+fi
+
 QA_RPATHS=0x002f \
 QA_SKIP_BUILD_ROOT=1 \
 rpmbuild \
@@ -202,8 +225,8 @@ rpmbuild \
     --define "_tmppath /tmp" \
     --define "pkg_version $VERSION" \
     --define "pkg_release $RELEASE" \
-    --define "py_version ${PY_VER_TAG:-python3.12}" \
     --define "staged_root $STAGING" \
+    "${EXTRA_RPM_ARGS[@]}" \
     -bb "$SPEC_FILE"
 
 mkdir -p "$OUTPUT_DIR"

@@ -28,6 +28,17 @@ By default, all builds produce **fully self-contained, zero-dependency** package
 
 ### Build Options:
 ```bash
+# Build standalone Linux packages (.rpm and .deb) + repositories:
+./build_packages.sh
+
+# Build 100% standalone native binary with Nuitka (ZERO Python dependency, runs on any machine):
+./build_packages.sh --nuitka-only
+# Or compile RPM and DEB packages using Nuitka native binaries:
+./build_packages.sh --nuitka
+
+# Build a single self-extracting executable with Nuitka:
+./packaging/build_nuitka.sh --onefile
+
 # Build all platforms (.rpm, .deb, and Windows .msi staging/installer):
 ./build_packages.sh --all
 
