@@ -91,16 +91,12 @@ if ! command -v patchelf >/dev/null 2>&1; then
 fi
 
 # 2. Determine Python environment with Nuitka and dependencies
-# OptolithiumC was built against libpython3.12.so.1.0; prefer python3.12 for ABI compatibility
+# Use the current system Python3 — OptolithiumC will be rebuilt against it.
 PYTHON_BIN=""
-if command -v python3.12 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3.12)"
-elif [ -n "$OPTOLITHIUM_VENV" ] && [ -x "$OPTOLITHIUM_VENV/bin/python" ]; then
+if [ -n "$OPTOLITHIUM_VENV" ] && [ -x "$OPTOLITHIUM_VENV/bin/python" ]; then
     PYTHON_BIN="$OPTOLITHIUM_VENV/bin/python"
 elif [ -x "$DEFAULT_VENV/bin/python" ]; then
     PYTHON_BIN="$DEFAULT_VENV/bin/python"
-elif [ -x "/opt/optolithium/venv/bin/python" ] && [ "$(/opt/optolithium/venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)" = "3.12" ]; then
-    PYTHON_BIN="/opt/optolithium/venv/bin/python"
 elif command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="$(command -v python3)"
 else
@@ -110,27 +106,26 @@ fi
 
 echo "==> Using Build Python: $("$PYTHON_BIN" --version 2>&1) at $PYTHON_BIN"
 
-# Check if libpython3.12.so.1.0 is available on system
+# Verify that the existing .so files match the selected Python version (if pre-built .so exists)
 if [ -f "$GUI_DIR/_optolithiumc.so" ]; then
     NEEDED_LIB="$(readelf -d "$GUI_DIR/_optolithiumc.so" 2>/dev/null | grep -o 'libpython3\.[0-9]\+\.so\.[0-9.]*' | head -n1 || true)"
-    if [ -n "$NEEDED_LIB" ] && ! ldconfig -p 2>/dev/null | grep -q "$NEEDED_LIB" && [ ! -f "/lib64/$NEEDED_LIB" ] && [ ! -f "/usr/lib64/$NEEDED_LIB" ]; then
-        echo "================================================================================" >&2
-        echo "Error: OptolithiumC core simulation library requires $NEEDED_LIB" >&2
-        echo "Please install Python 3.12 runtime and development headers on your system:" >&2
-        echo "    sudo dnf install -y python3.12 python3.12-devel" >&2
-        echo "================================================================================" >&2
-        exit 1
+    PY_VER_TAG="python$("$PYTHON_BIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+    EXPECTED_LIB="lib${PY_VER_TAG}.so.1.0"
+    if [ -n "$NEEDED_LIB" ] && [ "$NEEDED_LIB" != "$EXPECTED_LIB" ]; then
+        echo "==> NOTE: Existing _optolithiumc.so links against $NEEDED_LIB but build Python is $PY_VER_TAG." >&2
+        echo "==> Triggering rebuild of C++ core against $PY_VER_TAG..." >&2
+        FORCE_REBUILD=true
     fi
 fi
 
-# Add bundled or user site-packages to PYTHONPATH if present
-for sp in /opt/optolithium/venv/lib/python*/site-packages "$DEFAULT_VENV"/lib/python*/site-packages "$HOME/.local/lib/python3."*/site-packages; do
+# Add user site-packages to PYTHONPATH so Nuitka can find packages installed via pip
+for sp in "$DEFAULT_VENV"/lib/python*/site-packages "$HOME/.local/lib/python3."*/site-packages; do
     if [ -d "$sp" ]; then
         export PYTHONPATH="$sp:${PYTHONPATH:-}"
     fi
 done
 
-# Locate Nuitka binary
+# Locate Nuitka binary (works with user-installed nuitka via pip install --user)
 NUITKA_CMD=()
 if "$PYTHON_BIN" -m nuitka --version >/dev/null 2>&1; then
     NUITKA_CMD=("$PYTHON_BIN" -m nuitka)
@@ -178,10 +173,6 @@ NUITKA_ARGS=(
     --include-data-dir="$GUI_DIR/xhtml=xhtml"
     --include-data-files="$GUI_DIR/icon.ico=icon.ico"
     --include-data-files="$GUI_DIR/info.py=info.py"
-    --include-data-files="$GUI_DIR/_optolithiumc.so=_optolithiumc.so"
-    --include-data-files="$GUI_DIR/optolithiumc.py=optolithiumc.py"
-    --include-data-files="$GUI_DIR/_clipper.so=_clipper.so"
-    --include-data-files="$GUI_DIR/clipper.py=clipper.py"
     --include-package=database
     --include-package=views
     --include-package=bson
