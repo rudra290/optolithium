@@ -24,7 +24,7 @@
 
 import logging as module_logging
 
-from numpy import NaN, rot90, mean, abs, interp, asfortranarray, where, squeeze, \
+from numpy import nan, rot90, mean, abs, interp, asfortranarray, where, squeeze, \
     degrees, arctan, sin, cos, array, ones, vstack, dot, diff, average
 from numpy import max as amax
 from numpy import min as amin
@@ -318,7 +318,7 @@ class SidewallAngle(MetrologyInterface):
             else:
                 return SidewallAngle._calculate_sidewall_angle(polygons)
         except LookupError:
-            return NaN
+            return nan
 
     def _calculate_profile(self, profile, **kwargs):
         try:
@@ -327,7 +327,7 @@ class SidewallAngle(MetrologyInterface):
             else:
                 return SidewallAngle._calculate_sidewall_angle(profile.polygons)
         except LookupError:
-            return NaN
+            return nan
 
 
 class StandingWaveAmpl(MetrologyInterface):
@@ -394,7 +394,7 @@ class StandingWaveAmpl(MetrologyInterface):
                 swamp_right = StandingWaveAmpl._calculate_swamp(polygons, is_left=False)
                 return mean([swamp_left, swamp_right])
         except LookupError:
-            return NaN
+            return nan
 
     def _calculate_profile(self, profile, **kwargs):
         try:
@@ -405,7 +405,7 @@ class StandingWaveAmpl(MetrologyInterface):
                 swamp_right = StandingWaveAmpl._calculate_swamp(profile.polygons, is_left=False)
                 return mean([swamp_left, swamp_right])
         except LookupError:
-            return NaN
+            return nan
 
 
 class Contrast(MetrologyInterface):
@@ -467,7 +467,7 @@ class SubstratePhaseReflectivity(MetrologyInterface):
 
 def _calculate_thickness(polygons):
     if not len(polygons):
-        return NaN
+        return nan
 
     return max([max(polygon, key=lambda e: e.org.y).org.y for polygon in polygons])
 
@@ -497,7 +497,7 @@ class CriticalDimension(MetrologyInterface):
                 cross_points.append(level_edge.point(current_edge))
 
         if len(cross_points) != 2:
-            return NaN
+            return nan
 
         return oplc.Edge2d(cross_points[0], cross_points[1]).length()
 
@@ -532,7 +532,7 @@ class CriticalDimension(MetrologyInterface):
                     # logging.info("Current: %s" % cross_points)
 
         if not cross_points:
-            return NaN
+            return nan
 
         # Lookup two points nearest to the center of the given area (because mask feature for 1D mask always centered)
         xmin1 = min(cross_points, key=lambda p: oplc.Edge2d(p, oplc.Point2d(0.0, p.y)).length())
@@ -555,7 +555,7 @@ class CriticalDimension(MetrologyInterface):
         elif profile.has_y:
             x = profile.y
         else:
-            return NaN
+            return nan
 
         return CriticalDimension.__calculate_cd(x, profile.z, profile.polygons, **kwargs)
 

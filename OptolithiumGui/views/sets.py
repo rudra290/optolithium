@@ -26,7 +26,7 @@ import logging as module_logging
 
 from copy import deepcopy
 from auxmath import cartesian
-from numpy import arange, array, ndarray, savetxt, NaN
+from numpy import arange, array, ndarray, savetxt, nan
 from io import StringIO
 from config import COMMON_LINES_COLOR
 from qt import QtGui, QtCore, connect, disconnect, Signal, Slot
@@ -1175,7 +1175,7 @@ class SimulationResultsTab(QStackWidgetTab):
             try:
                 result[k+1, 0] = float(line.get_label())
             except ValueError:
-                result[k+1, 0] = NaN
+                result[k+1, 0] = nan
             result[k+1, 1:] = line.get_xydata()[:, 1]
         s = StringIO()
         savetxt(s, result.transpose(), fmt='%.5f', delimiter="\t")
