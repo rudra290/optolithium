@@ -170,12 +170,27 @@ if [ "$BUNDLE_VENV" = true ]; then
         --exclude="share/doc" \
         --exclude="share/man" \
         "$DEFAULT_VENV/" "$STAGING/opt/optolithium/venv/"
+
+    # Ensure interpreter symlinks point to the versioned python binary (e.g. /usr/bin/python3.12)
+    PY_VER_TAG=""
+    for d in "$STAGING/opt/optolithium/venv"/lib/python3.*; do
+        if [ -d "$d" ]; then
+            PY_VER_TAG="$(basename "$d")"
+            break
+        fi
+    done
+    if [ -n "$PY_VER_TAG" ]; then
+        ln -sf "/usr/bin/$PY_VER_TAG" "$STAGING/opt/optolithium/venv/bin/$PY_VER_TAG"
+        ln -sf "$PY_VER_TAG" "$STAGING/opt/optolithium/venv/bin/python3"
+        ln -sf "python3" "$STAGING/opt/optolithium/venv/bin/python"
+    fi
 fi
 
 # Calculate installed size in KB
 INSTALLED_SIZE="$(du -sk --exclude="./DEBIAN" "$STAGING" | cut -f1)"
 
-# 8. Create Debian control file with zero external dependencies
+# 8. Create Debian control file with proper dependencies
+DEB_PY_DEP="${PY_VER_TAG:-python3.12}"
 cat << EOF > "$STAGING/DEBIAN/control"
 Package: optolithium
 Version: ${VERSION}-${RELEASE}
@@ -184,7 +199,7 @@ Priority: optional
 Architecture: ${ARCH}
 Installed-Size: ${INSTALLED_SIZE}
 Maintainer: Alexei Gladkikh <gladkikhalexei@gmail.com>
-Depends: libc6 (>= 2.31)
+Depends: libc6 (>= 2.31), ${DEB_PY_DEP}
 Homepage: https://bitbucket.org/gladkikhalexei/lithography
 Description: Modern Optical Lithography Simulation Suite (Standalone Zero-Dependency)
  Optolithium is an optical lithography simulation and modeling software suite.
