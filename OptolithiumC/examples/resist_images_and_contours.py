@@ -154,7 +154,7 @@ class ResistImagesAndContours(object):
         self.environmentRefractiveIndexReal = 1.
         self.environmentRefractiveIndexImage = 0.
 
-        self.pac = np.linspace(0., 1., np.int(self.pitch / self.maskStep))
+        self.pac = np.linspace(0., 1., int(self.pitch / self.maskStep))
         # relative inhibitor concentration = (inhibitor concentration)/(initial inhibitor concentration)
         self.pn = 2
         max_development_rate = 100  # nm/s
