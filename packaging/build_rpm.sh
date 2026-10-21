@@ -212,11 +212,6 @@ fi
 
 echo "==> Running rpmbuild..."
 EXTRA_RPM_ARGS=()
-if [ "$USE_NUITKA" = true ]; then
-    EXTRA_RPM_ARGS+=(--define "without_py_requires 1")
-else
-    EXTRA_RPM_ARGS+=(--define "py_version ${PY_VER_TAG:-python3.12}")
-fi
 
 QA_RPATHS=0x002f \
 QA_SKIP_BUILD_ROOT=1 \

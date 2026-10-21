@@ -26,7 +26,6 @@ AutoReqProv:    no
 
 Requires:       /bin/sh
 Requires:       /usr/bin/env
-%{!?without_py_requires:Requires: %{?py_version}%{!?py_version:python3.12}}
 
 %description
 Optolithium is an optical lithography simulation and modeling software suite.

@@ -209,7 +209,7 @@ INSTALLED_SIZE="$(du -sk --exclude="./DEBIAN" "$STAGING" | cut -f1)"
 if [ "$USE_NUITKA" = true ]; then
     DEB_DEPS="libc6 (>= 2.31)"
 else
-    DEB_DEPS="libc6 (>= 2.31), ${PY_VER_TAG:-python3.12}"
+    DEB_DEPS="libc6 (>= 2.31)"
 fi
 
 cat << EOF > "$STAGING/DEBIAN/control"
