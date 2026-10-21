@@ -107,6 +107,7 @@ fi
 TMP_BUILD_DIR="/tmp/optolithium-debbuild-$USER-$$"
 STAGING="$TMP_BUILD_DIR/pkg"
 mkdir -p "$STAGING"/DEBIAN
+chmod 755 "$STAGING" "$STAGING/DEBIAN"
 mkdir -p "$STAGING"/opt/optolithium/app
 mkdir -p "$STAGING"/opt/optolithium/bin
 mkdir -p "$STAGING"/opt/optolithium/lib
@@ -121,11 +122,17 @@ INSTALL_BIN="$STAGING/opt/optolithium/bin"
 INSTALL_LIB="$STAGING/opt/optolithium/lib"
 
 if [ "$USE_NUITKA" = true ]; then
-    echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
-    NUITKA_OUT="$TMP_BUILD_DIR/nuitka"
-    bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
-    mkdir -p "$STAGING/opt/optolithium"
-    cp -a "$NUITKA_OUT/optolithium.dist"/* "$STAGING/opt/optolithium/"
+    if [ -d "$REPO_DIR/dist/nuitka/optolithium.dist" ] && [ "$FORCE_REBUILD" = false ]; then
+        echo "==> Using existing Nuitka standalone build from dist/nuitka/optolithium.dist..."
+        mkdir -p "$STAGING/opt/optolithium"
+        cp -a "$REPO_DIR/dist/nuitka/optolithium.dist"/* "$STAGING/opt/optolithium/"
+    else
+        echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
+        NUITKA_OUT="$TMP_BUILD_DIR/nuitka"
+        bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
+        mkdir -p "$STAGING/opt/optolithium"
+        cp -a "$NUITKA_OUT/optolithium.dist"/* "$STAGING/opt/optolithium/"
+    fi
     ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
 else
     # 1. Copy application files
