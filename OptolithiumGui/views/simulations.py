@@ -26,7 +26,7 @@ import logging as module_logging
 import optolithiumc as oplc
 
 from numpy import rot90, asfortranarray, linspace, round, arange
-from scipy.interpolate import interp2d
+from scipy.interpolate import RegularGridInterpolator
 from matplotlib.collections import PathCollection
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib.colors import BoundaryNorm
@@ -265,7 +265,11 @@ class GetPointAbility(Ability):
             rows, cols = data.shape
             xlim = self.__axes.get_xlim()
             ylim = self.__axes.get_ylim()
-            self.__interp = interp2d(x=linspace(xlim[0], xlim[1], cols), y=linspace(ylim[1], ylim[0], rows), z=data)
+            # scipy.interpolate.interp2d was removed in SciPy 1.14; RegularGridInterpolator
+            # provides the same bilinear interpolation on a rectilinear grid.
+            self.__interp = RegularGridInterpolator(
+                (linspace(ylim[1], ylim[0], rows), linspace(xlim[0], xlim[1], cols)),
+                data, method="linear", bounds_error=False, fill_value=None)
             self.__enabled = True
         elif self.__axes is not axes:
             self.disable()
@@ -284,7 +288,7 @@ class GetPointAbility(Ability):
     def _on_mouse_press(self, event):
         # logging.info("Mouse press event")
         if self.__enabled and event.inaxes == self.__axes and event.button == 1 and event.dblclick:
-            z = self.__interp(event.xdata, event.ydata)
+            z = self.__interp((event.xdata, event.ydata))
             self.__axes.text(event.xdata, event.ydata, "%.3f" % z, fontsize=20, color='crimson')
             self.__axes.plot(event.xdata, event.ydata, "o", color=COMMON_LINES_COLOR)
             logging.info("X = %.2f Y = %.2f Z = %.2f" % (event.xdata, event.ydata, z))

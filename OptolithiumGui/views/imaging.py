@@ -61,7 +61,7 @@ class StandardImagingPlot(QGraphPlot):
         self.setSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
 
         self.__interp = None
-        """:type: scipy.interpolate.interp2d"""
+        """:type: scipy.interpolate.RegularGridInterpolator"""
 
         self.__p_object = None
         # """:type: orm.SourceShape | orm.ConcretePluginSourceShape | None"""
