@@ -2,12 +2,17 @@
 set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_DIR="${OPTOLITHIUM_VENV:-/home/rudra/.cache/optolithium/venv}"
+VENV_DIR="${OPTOLITHIUM_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
 PYTHON_BIN="$VENV_DIR/bin/python"
 
 if [ ! -f "$PYTHON_BIN" ]; then
     echo "Creating virtual environment at $VENV_DIR..."
-    python3 -m venv "$VENV_DIR"
+    if command -v python3.12 >/dev/null 2>&1; then
+        BASE_PY="python3.12"
+    else
+        BASE_PY="python3"
+    fi
+    "$BASE_PY" -m venv "$VENV_DIR"
     "$VENV_DIR/bin/pip" install --upgrade pip
     "$VENV_DIR/bin/pip" install PyQt5 "numpy<2" scipy matplotlib "sqlalchemy<2" psutil python-magic python-gdsii bson
 fi
