@@ -588,6 +588,24 @@ class QStackWidgetTab(QtGui.QWidget):
         self.__hlayout.addStretch(1)
 
 
+class CalculationWorker(QtCore.QThread):
+    """Run a simulation stage without blocking the application's UI thread."""
+
+    succeeded = QtCore.pyqtSignal(object) if hasattr(QtCore, "pyqtSignal") else QtCore.Signal(object)
+    failed = QtCore.pyqtSignal(str) if hasattr(QtCore, "pyqtSignal") else QtCore.Signal(str)
+
+    def __init__(self, calculate, parent=None):
+        super(CalculationWorker, self).__init__(parent)
+        self.__calculate = calculate
+
+    def run(self):
+        try:
+            self.succeeded.emit(self.__calculate())
+        except Exception as error:
+            logging.exception("Simulation calculation failed")
+            self.failed.emit(str(error))
+
+
 class QStackedWidget(QtGui.QStackedWidget):
 
     def setCurrentWidget(self, widget):

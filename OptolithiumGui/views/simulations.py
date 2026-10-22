@@ -34,7 +34,7 @@ from matplotlib.colors import BoundaryNorm
 from qt import QtGui, QtCore, connect, QSlot
 from config import COMMON_LINES_COLOR, RESIST_FILL_COLOR, RESIST_LINES_COLOR, RESIST_CONTOUR_COLOR
 from views.common import QStackWidgetTab, QGraphPlot, QMetrologyTable, \
-    ProlithColormap, show_traceback, NavigationToolbar
+    ProlithColormap, show_traceback, NavigationToolbar, CalculationWorker
 from metrics import contour_sign
 
 import helpers
@@ -687,6 +687,8 @@ def SimulationViewsFactory(graph_class):
             self.__stage = stage
 
             self.__metrology_label = QtGui.QLabel("Metrology results:", self)
+            self.__calculation_status = QtGui.QLabel("", self)
+            self.__calculation_worker = None
             self.__displayed_result = None
             self.__displayed_metrics_kwargs = None
 
@@ -715,6 +717,7 @@ def SimulationViewsFactory(graph_class):
             self.__parameters_layout.addSpacing(30)
             self.__parameters_layout.addWidget(self.__metrology_label)
             self.__parameters_layout.addWidget(self._parameters)
+            self.__parameters_layout.addWidget(self.__calculation_status)
             self.__parameters_layout.addWidget(self._draw_mask_chkbox)
             self.__parameters_layout.addStretch()
 
@@ -739,9 +742,34 @@ def SimulationViewsFactory(graph_class):
         def on_draw_mask_chkbox_toggled(self, state):
             self._graph.draw_mask = state
 
-        @show_traceback
         def onSetActive(self):
-            self.__show_result(self.__stage.calculate())
+            if self.__calculation_worker is not None:
+                return
+            if self.__stage.has_result:
+                self.__show_result(self.__stage.calculate())
+                return
+            self.__calculation_status.setText("Calculating simulation…")
+            self.__calculation_worker = CalculationWorker(self.__stage.calculate, self)
+            connect(self.__calculation_worker.succeeded, self.__on_calculation_succeeded)
+            connect(self.__calculation_worker.failed, self.__on_calculation_failed)
+            connect(self.__calculation_worker.finished, self.__on_calculation_finished)
+            self.__calculation_worker.start()
+
+        @QSlot(object)
+        def __on_calculation_succeeded(self, data):
+            self.__calculation_status.clear()
+            self.__show_result(data)
+
+        @QSlot(str)
+        def __on_calculation_failed(self, message):
+            self.__calculation_status.setText("Calculation failed: %s" % message)
+
+        @QSlot()
+        def __on_calculation_finished(self):
+            worker = self.__calculation_worker
+            self.__calculation_worker = None
+            if worker is not None:
+                worker.deleteLater()
 
         @show_traceback
         def __show_result(self, data):

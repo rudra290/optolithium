@@ -28,7 +28,7 @@ from matplotlib.patches import Circle
 from scipy import interpolate
 
 from qt import QtGui, connect, QSlot
-from views.common import QStackWidgetTab, QGraphPlot, ProlithColormap, show_traceback
+from views.common import QStackWidgetTab, QGraphPlot, ProlithColormap, show_traceback, CalculationWorker
 
 import helpers
 from auxmath import middle, cartesian
@@ -387,6 +387,8 @@ class DiffractionPatternView(QStackWidgetTab):
         self.__ky_spinbox.setFixedWidth(80)
 
         self.__graph = DiffractionPatternGraph(self, simulation.options)
+        self.__calculation_status = QtGui.QLabel("", self)
+        self.__calculation_worker = None
 
         self.__options_layout = QtGui.QVBoxLayout()
         self.__options_layout.addWidget(self.__type_label)
@@ -406,6 +408,7 @@ class DiffractionPatternView(QStackWidgetTab):
         self.__options_layout.addStretch()
 
         self.__graph_layout = QtGui.QVBoxLayout()
+        self.__graph_layout.addWidget(self.__calculation_status)
         self.__graph_layout.addWidget(self.__graph)
 
         self.__layout = QtGui.QHBoxLayout(self)
@@ -433,9 +436,26 @@ class DiffractionPatternView(QStackWidgetTab):
     def on_ky_spin_changed(self, value):
         self.__graph.current_y = value
 
-    @show_traceback
     def onSetActive(self):
-        pattern = self.__simulation.diffraction.calculate()
+        if self.__calculation_worker is not None:
+            return
+        if self.__simulation.diffraction.has_result:
+            self.__show_pattern(self.__simulation.diffraction.calculate())
+            return
+        self.__calculation_status.setText("Calculating simulation…")
+        self.__calculation_worker = CalculationWorker(self.__simulation.diffraction.calculate, self)
+        connect(self.__calculation_worker.succeeded, self.__on_calculation_succeeded)
+        connect(self.__calculation_worker.failed, self.__on_calculation_failed)
+        connect(self.__calculation_worker.finished, self.__on_calculation_finished)
+        self.__calculation_worker.start()
+
+    @QSlot(object)
+    def __on_calculation_succeeded(self, pattern):
+        self.__calculation_status.clear()
+        self.__show_pattern(pattern)
+
+    @show_traceback
+    def __show_pattern(self, pattern):
 
         self.__graph.block_redraw(True)
 
@@ -448,3 +468,14 @@ class DiffractionPatternView(QStackWidgetTab):
 
         self.__graph.block_redraw(False)
         self.__graph.draw_graph()
+
+    @QSlot(str)
+    def __on_calculation_failed(self, message):
+        self.__calculation_status.setText("Calculation failed: %s" % message)
+
+    @QSlot()
+    def __on_calculation_finished(self):
+        worker = self.__calculation_worker
+        self.__calculation_worker = None
+        if worker is not None:
+            worker.deleteLater()
