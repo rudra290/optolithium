@@ -87,7 +87,7 @@ void _calc_aerial_image(SharedResistVolume result, SharedDiffraction diffraction
 	// Plan one reusable transform quickly. The third FFTW argument selects the
 	// planner strategy based on an estimated number of executions, but planning
 	// itself happens only once and MEASURE can be prohibitively expensive here.
-	fft::FFT2d fft(efield, fft::FFT_BACKWARD);
+	fft::FFT2d fft_transform(efield, fft::FFT_BACKWARD);
 
 	for (uint32_t s = 0; s < n_slices; s++) {
 		const double thickness = result->z(s);
@@ -119,7 +119,7 @@ void _calc_aerial_image(SharedResistVolume result, SharedDiffraction diffraction
 				}
 			}
 
-            fft.execute();
+			fft_transform.execute();
 
 			{TIMED_SCOPE(aerial_image_timer_intensity, "Intensity for given source shape point done");
 				// Calculate intensity for given source point and sum if with previous result

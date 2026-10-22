@@ -32,8 +32,24 @@
 #endif
 
 
+#if !defined(OPTOLITHIUMC_USE_FFTW_LIBRARY) && !defined(OPTOLITHIUMC_USE_KISSFFT_LIBRARY) && !defined(OPTOLITHIUMC_USE_FOURIER_LIBRARY)
+    #define OPTOLITHIUMC_USE_FFTW_LIBRARY 1
+#endif
+
 #if defined(OPTOLITHIUMC_USE_FFTW_LIBRARY)
-#include <fftw3.h>
+    #if defined(__has_include)
+        #if __has_include(<fftw3.h>)
+            #include <fftw3.h>
+        #elif __has_include("fftw3.h")
+            #include "fftw3.h"
+        #elif __has_include("../libs/fftw3-win32/fftw3.h")
+            #include "../libs/fftw3-win32/fftw3.h"
+        #else
+            #include <fftw3.h>
+        #endif
+    #else
+        #include <fftw3.h>
+    #endif
 #elif defined(OPTOLITHIUMC_USE_KISSFFT_LIBRARY)
 #include <kiss_fftnd.h>
 #include <kiss_fft.h>
