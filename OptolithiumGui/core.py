@@ -19,6 +19,8 @@
 # If you are interested in other licensing models, including a commercial-
 # license, please contact the author at gladkikhalexei@gmail.com
 
+import math
+import psutil
 import optolithiumc as oplc
 import logging as module_logging
 import helpers
@@ -35,6 +37,31 @@ __author__ = 'Alexei Gladkikh'
 logging = module_logging.getLogger(__name__)
 logging.setLevel(module_logging.INFO)
 helpers.logStreamEnable(logging)
+
+
+def _available_memory_bytes():
+    available = psutil.virtual_memory().available
+    # psutil reports host memory in some containers; account for the container
+    # limit as well so Linux does not kill the process during a large allocation.
+    for limit_path, usage_path in (
+            ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.current"),
+            ("/sys/fs/cgroup/memory/memory.limit_in_bytes",
+             "/sys/fs/cgroup/memory/memory.usage_in_bytes")):
+        try:
+            with open(limit_path, "r") as limit_file:
+                limit_text = limit_file.read().strip()
+            if limit_text == "max":
+                continue
+            limit = int(limit_text)
+            # cgroup v1 uses a very large number to mean "unlimited".
+            if limit > psutil.virtual_memory().total * 2:
+                continue
+            with open(usage_path, "r") as usage_file:
+                usage = int(usage_file.read().strip())
+            available = min(available, max(0, limit - usage))
+        except (IOError, OSError, ValueError):
+            continue
+    return available
 
 core_logging = oplc.OptolithiumCoreLog()
 core_logging.set_verbose_level(4)
@@ -334,6 +361,27 @@ class ImageInResistStage(AbstractStage):
         exposure = self.core_options.exposure()
 
         otf = oplc.OpticalTransferFunction(imaging_tool, exposure, wafer_stack)
+
+        # Refuse allocations that are likely to trigger the OS OOM killer. A
+        # resist volume is much larger than its 2D image because every Z slice
+        # stores a full XY plane.
+        pitch = diffraction.pitch
+        grid_xy = numerics.grid_xy.value
+        grid_z = numerics.grid_z.value
+        nx = int(math.ceil(pitch.x / grid_xy)) + 1
+        ny = int(math.ceil(pitch.y / grid_xy)) + 1
+        nz = int(math.ceil(wafer_stack.resist().thickness / grid_z)) + 1
+        volume_bytes = nx * ny * max(1, nz) * 8
+        plane_bytes = nx * ny * 8
+        estimated_bytes = 2 * volume_bytes + 4 * plane_bytes
+        available_bytes = _available_memory_bytes()
+        if estimated_bytes > available_bytes * 0.70:
+            raise MemoryError(
+                "This resist image is estimated to need about %.1f GiB of memory, "
+                "but only %.1f GiB is currently available. Increase the X/Y or Z "
+                "grid spacing in Numerics and try again." % (
+                    estimated_bytes / float(1024 ** 3),
+                    available_bytes / float(1024 ** 3)))
 
         image_in_resist = oplc.image_in_resist(diffraction, otf, numerics.grid_xy.value, numerics.grid_z.value)
 
