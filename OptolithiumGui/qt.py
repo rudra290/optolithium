@@ -118,15 +118,24 @@ logging.setLevel(module_logging.INFO)
 helpers.logStreamEnable(logging)
 
 
+def _normalize_slot(slot):
+    if type(slot) is not types.MethodType and hasattr(slot, "__self__") and hasattr(slot, "__func__"):
+        try:
+            return types.MethodType(slot.__func__, slot.__self__)
+        except Exception:
+            pass
+    return slot
+
+
 def connect(signal, *slots, **kwargs):
     """
     :type signal: Signal
-    :type slot: Slot
+    :type slots: list of Slot
     """
     connection_type = kwargs.get("connection_type", QtCore.Qt.AutoConnection)
     logging.debug("Connect %s with %s" % (signal, slots))
     for slot in slots:
-        signal.connect(slot, connection_type)
+        signal.connect(_normalize_slot(slot), connection_type)
 
 
 def disconnect(signal, slot):
@@ -135,7 +144,11 @@ def disconnect(signal, slot):
     :type slot: Slot
     """
     logging.debug("Disconnect %s with %s" % (signal, slot))
-    signal.disconnect(slot)
+    slot = _normalize_slot(slot)
+    try:
+        signal.disconnect(slot)
+    except (TypeError, RuntimeError) as e:
+        logging.debug("Disconnect failed: %s" % e)
 
 
 class _GlobalSignalsClass(QtCore.QObject):
