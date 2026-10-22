@@ -189,9 +189,6 @@ if [ "$BUNDLE_VENV" = true ]; then
     fi
     mkdir -p "$INSTALL_OPT/venv"
     rsync -a \
-        --exclude="tests" \
-        --exclude="test" \
-        --exclude="testing" \
         --exclude="docs" \
         --exclude="doc" \
         --exclude="__pycache__" \
