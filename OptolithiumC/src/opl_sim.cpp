@@ -84,7 +84,10 @@ void _calc_aerial_image(SharedResistVolume result, SharedDiffraction diffraction
 
 	arma::cx_mat efield = arma::cx_mat(n_rows, n_cols);
 
-    fft::FFT2d fft(efield, fft::FFT_BACKWARD, n_source_points*n_slices);
+	// Plan one reusable transform quickly. The third FFTW argument selects the
+	// planner strategy based on an estimated number of executions, but planning
+	// itself happens only once and MEASURE can be prohibitively expensive here.
+	fft::FFT2d fft(efield, fft::FFT_BACKWARD);
 
 	for (uint32_t s = 0; s < n_slices; s++) {
 		const double thickness = result->z(s);
@@ -252,7 +255,8 @@ SharedResistVolume latent_image(SharedResistVolume image_in_resist,
 SharedResistVolume peb_latent_image(SharedResistVolume latent_image,
 		SharedResistWaferLayer resist, SharedPostExposureBake peb) {
 	LOG(INFO) << "Optolithium Core: Calculate PEB latent image";
-	SharedResistVolume result = std::make_shared<ResistVolume>(*latent_image, false);
+	// The convolution overwrites every output voxel, so do not copy the input cube.
+	SharedResistVolume result = std::make_shared<ResistVolume>(*latent_image, true);
 
 	arma::vec kernelx = resist->peb->kernel(peb, latent_image->stepx());
 	arma::vec kernely = resist->peb->kernel(peb, latent_image->stepy());
@@ -302,7 +306,8 @@ SharedResistVolume peb_latent_image(SharedResistVolume latent_image,
 
 SharedResistVolume develop_time_contours(SharedResistVolume peb_latent_image, SharedResistWaferLayer resist) {
 	LOG(INFO) << "Optolithium Core: Calculate develop time contours";
-	SharedResistVolume result = std::make_shared<ResistVolume>(*peb_latent_image, false);
+	// This volume is initialized completely below; copying the input cube is wasteful.
+	SharedResistVolume result = std::make_shared<ResistVolume>(*peb_latent_image, true);
 
 	const arma::cube& values = *peb_latent_image->values();
 
