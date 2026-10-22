@@ -30,6 +30,10 @@
 #include "opl_contours.h"
 #include "opl_fft.h"
 
+#include <thread>
+#include <vector>
+#include <cmath>
+
 
 SharedDiffraction diffraction(SharedImagingTool imaging_tool, SharedMask mask)
 {
@@ -195,11 +199,52 @@ SharedResistVolume image_in_resist(SharedDiffraction diffraction,
 SharedResistVolume latent_image(SharedResistVolume image_in_resist,
 		SharedResistWaferLayer resist, SharedExposure exposure) {
 	LOG(INFO) << "Optolithium Core: Calculate exposed latent image";
+	TIMED_FUNC(latent_image_timer);
 	const arma::cube& values = *image_in_resist->values();
-	// Create new resist volume object without coping data from it.
-	SharedResistVolume result = std::make_shared<ResistVolume>(*image_in_resist, false);
-//	LOG(INFO) << "Dose = " << exposure->dose() << " C = " << resist->exposure->c;
-	*result->values() = arma::exp(-values*exposure->dose()*resist->exposure->c);
+	// Create new resist volume object with same dimensions without copying data from it.
+	SharedResistVolume result = std::make_shared<ResistVolume>(*image_in_resist, true);
+
+	const double factor = -exposure->dose() * resist->exposure->c;
+	const size_t total_elem = values.n_elem;
+	const double* in_ptr = values.memptr();
+	double* out_ptr = result->values()->memptr();
+
+#ifdef _OPENMP
+	#pragma omp parallel for schedule(static)
+	for (size_t i = 0; i < total_elem; ++i) {
+		out_ptr[i] = std::exp(factor * in_ptr[i]);
+	}
+#else
+	unsigned int num_threads = std::thread::hardware_concurrency();
+	if (num_threads == 0) {
+		num_threads = 4;
+	}
+	if (total_elem < 10000 || num_threads <= 1) {
+		for (size_t i = 0; i < total_elem; ++i) {
+			out_ptr[i] = std::exp(factor * in_ptr[i]);
+		}
+	} else {
+		if (num_threads > total_elem) {
+			num_threads = static_cast<unsigned int>(total_elem);
+		}
+		std::vector<std::thread> workers;
+		workers.reserve(num_threads);
+		const size_t chunk_size = total_elem / num_threads;
+		for (unsigned int t = 0; t < num_threads; ++t) {
+			size_t start = t * chunk_size;
+			size_t end = (t == num_threads - 1) ? total_elem : start + chunk_size;
+			workers.emplace_back([in_ptr, out_ptr, factor, start, end]() {
+				for (size_t i = start; i < end; ++i) {
+					out_ptr[i] = std::exp(factor * in_ptr[i]);
+				}
+			});
+		}
+		for (auto& w : workers) {
+			w.join();
+		}
+	}
+#endif
+
 	return result;
 }
 
