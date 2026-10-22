@@ -111,80 +111,80 @@ class SystemMemoryView(QtGui.QGroupBox):
 
         QtGui.QGroupBox.__init__(self, "System memory state", parent)
 
-        self.__mask = mask
-        self.__resist = resist
-        self.__numerics = numerics
+        self._mask = mask
+        self._resist = resist
+        self._numerics = numerics
 
-        connect(self.__numerics.grid_xy.signals[Abstract], self._grid_updated)
-        connect(self.__numerics.grid_z.signals[Abstract], self._grid_updated)
-        connect(self.__numerics.speed_factor.signals[Abstract], self._speed_factor_updated)
+        connect(self._numerics.grid_xy.signals[Abstract], self._grid_updated)
+        connect(self._numerics.grid_z.signals[Abstract], self._grid_updated)
+        connect(self._numerics.speed_factor.signals[Abstract], self._speed_factor_updated)
 
         usage = psutil.virtual_memory()
         mem_ai_required = self._calc_required_memory_ai()
         mem_3d_required = self._calc_required_memory_3d()
-        self.__mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")
-        self.__mem_free = Variable(Numeric(dtype=float), value=float(usage.free), name="FreeMemory")
-        self.__mem_total = Variable(Numeric(dtype=float), value=float(usage.total), name="TotalMemory")
-        self.__mem_ai_required = Variable(Numeric(dtype=float), value=mem_ai_required, name="RequiredAIMemory")
-        self.__mem_3d_required = Variable(Numeric(dtype=float), value=mem_3d_required, name="Required3DMemory")
+        self._mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")
+        self._mem_free = Variable(Numeric(dtype=float), value=float(usage.free), name="FreeMemory")
+        self._mem_total = Variable(Numeric(dtype=float), value=float(usage.total), name="TotalMemory")
+        self._mem_ai_required = Variable(Numeric(dtype=float), value=mem_ai_required, name="RequiredAIMemory")
+        self._mem_3d_required = Variable(Numeric(dtype=float), value=mem_3d_required, name="Required3DMemory")
 
-        self.__source_shape_grid = Variable(
+        self._source_shape_grid = Variable(
             Numeric(dtype=float), value=float(numerics.source_stepxy), name="SourceShapeGrid")
 
-        self.__info_layout = SystemMemoryView.GridLayout()
-        self.__info_layout.addRow("Virtual memory used:", QFramedLabel(self, self.__mem_used, frmt=fmt))
-        self.__info_layout.addRow("Memory available:", QFramedLabel(self, self.__mem_free, frmt=fmt))
-        self.__info_layout.addRow("Memory total:", QFramedLabel(self, self.__mem_total, frmt=fmt))
-        self.__info_layout.addRow("Aerial image memory req.:", QFramedLabel(self, self.__mem_ai_required, frmt=fmt))
-        self.__info_layout.addRow("Resist 2D/3D memory req.:", QFramedLabel(self, self.__mem_3d_required, frmt=fmt))
-        self.__info_layout.addRow("Source shape grid:", QFramedLabel(self, self.__source_shape_grid, frmt="%.03f um"))
+        self._info_layout = SystemMemoryView.GridLayout()
+        self._info_layout.addRow("Virtual memory used:", QFramedLabel(self, self._mem_used, frmt=fmt))
+        self._info_layout.addRow("Memory available:", QFramedLabel(self, self._mem_free, frmt=fmt))
+        self._info_layout.addRow("Memory total:", QFramedLabel(self, self._mem_total, frmt=fmt))
+        self._info_layout.addRow("Aerial image memory req.:", QFramedLabel(self, self._mem_ai_required, frmt=fmt))
+        self._info_layout.addRow("Resist 2D/3D memory req.:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
+        self._info_layout.addRow("Source shape grid:", QFramedLabel(self, self._source_shape_grid, frmt="%.03f um"))
 
-        self.__layout = QtGui.QVBoxLayout(self)
-        self.__layout.addLayout(self.__info_layout)
-        self.__layout.addStretch()
+        self._layout = QtGui.QVBoxLayout(self)
+        self._layout.addLayout(self._info_layout)
+        self._layout.addStretch()
 
-        self.__mem_update_timer = QtCore.QTimer(self)
-        connect(self.__mem_update_timer.timeout, self._update_memory)
-        self.__mem_update_timer.start(config.Configuration.memory_update_interval)
+        self._mem_update_timer = QtCore.QTimer(self)
+        connect(self._mem_update_timer.timeout, self._update_memory)
+        self._mem_update_timer.start(config.Configuration.memory_update_interval)
 
         self._grid_updated()
 
     # noinspection PyPep8Naming
     def setObject(self, options):
-        self.__mask = options.mask
-        self.__resist = options.wafer_process.resist
+        self._mask = options.mask
+        self._resist = options.wafer_process.resist
         self._grid_updated()
 
     @Slot()
     def _speed_factor_updated(self):
-        self.__source_shape_grid.value = self.__numerics.source_stepxy
+        self._source_shape_grid.value = self._numerics.source_stepxy
 
     @Slot()
     def _grid_updated(self):
         self._update_memory()
-        self.__mem_ai_required.value = self._calc_required_memory_ai()
-        self.__mem_3d_required.value = self._calc_required_memory_3d()
+        self._mem_ai_required.value = self._calc_required_memory_ai()
+        self._mem_3d_required.value = self._calc_required_memory_3d()
 
     def _calc_required_memory_ai(self):
         # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
-        sizes = self.__mask.container.boundary[1] - self.__mask.container.boundary[0]
+        sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]
 
-        vx = (sizes.x / self.__numerics.grid_xy.value + 1.0) if sizes.x != 0.0 else 1.0
-        vy = (sizes.y / self.__numerics.grid_xy.value + 1.0) if sizes.y != 0.0 else 1.0
+        vx = (sizes.x / self._numerics.grid_xy.value + 1.0) if sizes.x != 0.0 else 1.0
+        vy = (sizes.y / self._numerics.grid_xy.value + 1.0) if sizes.y != 0.0 else 1.0
 
         return self.double_precision * vx * vy
 
     def _calc_required_memory_3d(self):
         # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
-        vz = self.__resist.thickness / self.__numerics.grid_z.value + 1.0
+        vz = self._resist.thickness / self._numerics.grid_z.value + 1.0
         return self.stages_count * self._calc_required_memory_ai() * vz
 
     @Slot()
     def _update_memory(self):
         usage = psutil.virtual_memory()
-        self.__mem_used.value = float(usage.used)
-        self.__mem_free.value = float(usage.available)
-        self.__mem_total.value = float(usage.total)
+        self._mem_used.value = float(usage.used)
+        self._mem_free.value = float(usage.available)
+        self._mem_total.value = float(usage.total)
 
 
 class NumericsView(QStackWidgetTab):
