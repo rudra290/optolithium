@@ -431,7 +431,10 @@ class MainWindow(QtGui.QMainWindow):
     # noinspection PyPep8Naming
     def changeStackView(self):
         sender_name = str(self.sender().objectName())
-        widget = self.tabs[sender_name]
+        widget = self.tabs.get(sender_name)
+        if widget is None:
+            logging.warning("No view is registered for control %s", sender_name)
+            return
         self.tabs_stack.setCurrentWidget(widget)
 
     # noinspection PyPep8Naming,PyMethodMayBeStatic
@@ -556,7 +559,6 @@ class MainWindow(QtGui.QMainWindow):
                 ControlBar.ActionData(
                     name="CoatAndPrebake",
                     text="&Coat and prebake",
-                    callback=self.changeStackView,
                     status_tip="Coat and prebake"),
                 ControlBar.ActionData(
                     name="Mask",
