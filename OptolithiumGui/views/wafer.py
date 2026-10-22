@@ -25,7 +25,7 @@
 import collections
 import logging as module_logging
 
-from qt import QtGui, QtCore, connect, Signal, Slot, GlobalSignals
+from qt import QtGui, QtCore, connect, Signal, QSlot, GlobalSignals
 from resources import Resources
 from database import orm
 from database.common import ApplicationDatabase
@@ -471,8 +471,8 @@ class QProcessStack(QtGui.QGroupBox):
                 return False
         return True
 
-    @Slot(QtCore.QModelIndex, int, int, QtCore.QModelIndex, int)
-    @Slot(QtGui.QItemSelection, QtGui.QItemSelection)
+    @QSlot(QtCore.QModelIndex, int, int, QtCore.QModelIndex, int)
+    @QSlot(QtGui.QItemSelection, QtGui.QItemSelection)
     def _item_changed(self, *args):
         self.__add_button.setEnabled(True)
 
@@ -696,7 +696,7 @@ class QProcessStepProperty(QtGui.QGroupBox):
         self.__save_button.setEnabled(enabled)
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def changeMaterial(self, index):
         layer = self.__data_model[index]
         resist = self.__data_model.resist

@@ -24,7 +24,7 @@ import logging as module_logging
 import helpers
 
 from numpy import angle
-from qt import QtCore, Signal, connect, Slot
+from qt import QtCore, Signal, connect, QSlot
 from metrics import IMAGE_NEGATIVE, IMAGE_POSITIVE, \
     CONTOUR_METRICS, IMAGE_METRICS, PROFILE_METRICS, STANDING_WAVES_METRICS
 
@@ -171,7 +171,7 @@ class AbstractStage(QtCore.QObject):
     def has_result(self):
         return self.__result is not None
 
-    @Slot()
+    @QSlot()
     def invalidate(self):
         # logging.info("Invalidate: %s" % self.__class__.__name__)
         self.__result = None

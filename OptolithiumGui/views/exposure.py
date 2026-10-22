@@ -26,7 +26,7 @@ import logging as module_logging
 
 from matplotlib.patches import Rectangle
 
-from qt import QtGui, connect, Slot
+from qt import QtGui, connect, QSlot
 from views.common import QStackWidgetTab, QLineEditNumeric, QComboBoxEnum, QGraphPlot
 from options.structures import Abstract
 
@@ -168,7 +168,7 @@ class FocusGraph(QGraphPlot):
 
         self.redraw()
 
-    @Slot()
+    @QSlot()
     def update_graph(self):
         self.draw_graph(
             self.__exposure_focus.focus.value,

@@ -34,6 +34,7 @@ try:
     version = _QtCore.PYQT_VERSION_STR
     Signal = _QtCore.pyqtSignal
     Slot = _QtCore.pyqtSlot
+    QSlot = _QtCore.pyqtSlot
 except ImportError:
     try:
         import PySide
@@ -45,6 +46,7 @@ except ImportError:
         version = PySide.__version__
         Signal = _QtCore.Signal
         Slot = _QtCore.Slot
+        QSlot = _QtCore.Slot
     except ImportError:
         from PySide2 import QtCore as _QtCore
         from PySide2 import QtGui as _PyQtQtGui
@@ -55,6 +57,7 @@ except ImportError:
         version = PySide2.__version__
         Signal = _QtCore.Signal
         Slot = _QtCore.Slot
+        QSlot = _QtCore.Slot
 
 # Composite QtGui module to provide both QtGui and QtWidgets classes (for Qt4/PySide compatibility)
 class _QtGuiShim(types.ModuleType):
@@ -139,7 +142,7 @@ class _GlobalSignalsClass(QtCore.QObject):
 
     changed = Signal()
 
-    @Slot()
+    @QSlot()
     def onChanged(self):
         self.changed.emit()
 

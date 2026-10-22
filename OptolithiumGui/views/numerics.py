@@ -25,7 +25,7 @@
 import logging as module_logging
 import psutil
 
-from qt import QtGui, QtCore, connect, Slot
+from qt import QtGui, QtCore, connect, QSlot
 from views.common import QStackWidgetTab, QFramedLabel, QSliderNumeric, QLineEditNumeric, QComboBoxEnum
 
 from config import MEGABYTE
@@ -155,11 +155,11 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._resist = options.wafer_process.resist
         self._grid_updated()
 
-    @Slot()
+    @QSlot()
     def _speed_factor_updated(self):
         self._source_shape_grid.value = self._numerics.source_stepxy
 
-    @Slot()
+    @QSlot()
     def _grid_updated(self):
         self._update_memory()
         self._mem_ai_required.value = self._calc_required_memory_ai()
@@ -179,7 +179,7 @@ class SystemMemoryView(QtGui.QGroupBox):
         vz = self._resist.thickness / self._numerics.grid_z.value + 1.0
         return self.stages_count * self._calc_required_memory_ai() * vz
 
-    @Slot()
+    @QSlot()
     def _update_memory(self):
         usage = psutil.virtual_memory()
         self._mem_used.value = float(usage.used)

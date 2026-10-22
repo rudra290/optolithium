@@ -24,7 +24,7 @@
 import logging as module_logging
 
 from scipy import ndimage
-from qt import connect, disconnect, Slot, QtGui, QtCore
+from qt import connect, disconnect, QSlot, QtGui, QtCore
 from views.common import QStackWidgetTab, ParameterGroupBox, QLoadDialogFactory, QGraphPlot, ProlithColormap
 from options.common import Abstract
 from database import orm
@@ -88,7 +88,7 @@ class StandardImagingPlot(QGraphPlot):
         self.__onValueChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onValueChanged(self):
         self.draw_graph()
 
@@ -206,14 +206,14 @@ class SourceShapeBox(ParameterGroupBox):
         self._add_plugin_parameters(p_object, self.__parameters_vlayout)
         self.__source_shape_plot.setObject(p_object)
 
-    @Slot()
+    @QSlot()
     def __load_source_shape(self):
         if self.__load_source_shape_dlg.exec_():
             source_shape = self.__load_source_shape_dlg.object
             logging.info("Load source shape: %s [%s]" % (source_shape.name, type(source_shape).__name__))
             self.setObject(source_shape)
 
-    @Slot()
+    @QSlot()
     def __save_source_shape(self):
         pass
 
@@ -317,7 +317,7 @@ class PupilFilterBox(ParameterGroupBox):
             self._add_plugin_parameters(p_object, self.__parameters_vlayout)
             self.__pupil_filter_plot.setObject(p_object)
 
-    @Slot()
+    @QSlot()
     def __load_pupil_filter(self):
         if self.__load_pupil_filter_dlg.exec_():
             pupil_filter = self.__load_pupil_filter_dlg.object
@@ -327,14 +327,14 @@ class PupilFilterBox(ParameterGroupBox):
             self.__imaging_tool.dirty = True
             # self.__imaging_tool.changed.emit()
 
-    @Slot()
+    @QSlot()
     def __unload_pupil_filter(self):
         self.__imaging_tool.pupil_filter = None
         self.setObject(None)
         self.__imaging_tool.dirty = True
         self.__imaging_tool.changed.emit()
 
-    @Slot()
+    @QSlot()
     def __save_pupil_filter(self):
         pass
 
@@ -402,7 +402,7 @@ class ImmersionBox(ParameterGroupBox):
         self.immersionStateChanged(self.__imaging_tool.immersion_enabled)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def immersionStateChanged(self, immersion_enabled):
         self.__imaging_tool.immersion_enabled = immersion_enabled
         self.__refraction_index_label.setEnabled(immersion_enabled)

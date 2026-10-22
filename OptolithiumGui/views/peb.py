@@ -24,7 +24,7 @@
 
 import logging as module_logging
 
-from qt import connect, disconnect, Slot, QtGui
+from qt import connect, disconnect, QSlot, QtGui
 from views.common import QStackWidgetTab, QLabel, QLineEditNumeric, QGraphPlot
 from database import orm
 from options import Abstract
@@ -72,7 +72,7 @@ class TemperatureProfileGraph(QGraphPlot):
         self.__onValueChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onValueChanged(self):
         self.draw_graph(self.__peb.time.value, self.__peb.temp.value)
 
@@ -157,7 +157,7 @@ class TemperatureProfileBox(QtGui.QGroupBox):
         self.__onValueChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onValueChanged(self):
         if self.__resist is not None:
             self.__diffusion_length.setText(

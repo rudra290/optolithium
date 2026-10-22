@@ -29,7 +29,7 @@ from auxmath import cartesian
 from numpy import arange, array, ndarray, savetxt, nan
 from io import StringIO
 from config import COMMON_LINES_COLOR
-from qt import QtGui, QtCore, connect, disconnect, Signal, Slot
+from qt import QtGui, QtCore, connect, disconnect, Signal, QSlot
 from views.common import QObjectNumeric, QStackWidgetTab, QGraphPlot, calculate_table_width, msgBox, NavigationToolbar
 from options.structures import Options, AbstractOptionsBase, Variable, StandardLayer, Resist, Numeric
 from database.orm import StandardObject, ConcretePluginCommon, DeveloperExprArgValue, \
@@ -434,7 +434,7 @@ class InputVariablesTable(QtGui.QTableWidget):
     }
 
     # noinspection PyPep8Naming
-    @Slot(QtGui.QTableWidgetItem)
+    @QSlot(QtGui.QTableWidgetItem)
     def onItemChanged(self, item):
         row = item.row()
         col = item.column()
@@ -505,7 +505,7 @@ class InputVariablesBox(AbstractGroupBox):
         self.__layout.addWidget(self.__input_variables_table)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onTreeSelectionChanged(self):
         items = self.__input_variables_tree.selectedItems()
         # check whether item has item column (otherwise it's only header not a variable)
@@ -516,13 +516,13 @@ class InputVariablesBox(AbstractGroupBox):
         )
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onTableSelectionChanged(self):
         items = self.__input_variables_table.selectedItems()
         self.__button_remove.setEnabled(bool(items))
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onAddVariableButtonClicked(self):
         items = self.__input_variables_tree.selectedItems()
         if items and items[0].text(InputVariablesTree.INDEX_COLUMN):
@@ -530,7 +530,7 @@ class InputVariablesBox(AbstractGroupBox):
             self.__input_variables_table.add_variable(name, index, variable)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onRemoveVariableButtonClicked(self):
         row = self.__input_variables_table.currentRow()
         index = self.__input_variables_table.item(row, InputVariablesTable.INDEX_COLUMN)
@@ -538,22 +538,22 @@ class InputVariablesBox(AbstractGroupBox):
         self.__input_variables_table.remove_variable(row)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onExpandAllClicked(self):
         self.__input_variables_tree.set_expand_collapse_all(True)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onCollapseAllClicked(self):
         self.__input_variables_tree.set_expand_collapse_all(False)
 
     # noinspection PyPep8Naming
-    @Slot(list)
+    @QSlot(list)
     def onVariablesChanged(self, data):
         self.variablesChanged.emit(data)
 
     # noinspection PyPep8Naming
-    @Slot(dict)
+    @QSlot(dict)
     def onValuesChanged(self, data):
         self.valuesChanged.emit(data)
 
@@ -689,7 +689,7 @@ class SimulationSetsPayload(QtCore.QObject):
         # logging.info("%s %s %s" % (is_variables, is_stage, is_values))
         return is_variables and is_values and is_stage
 
-    @Slot()
+    @QSlot()
     def start(self):
         # logging.info(
         #     "Starting simulation set in %s with %s to stage: %s" %
@@ -707,7 +707,7 @@ class SimulationSetsPayload(QtCore.QObject):
         for variable in self.variables:
             variable.value = backup[variable]
 
-    @Slot(str)
+    @QSlot(str)
     def task(self, task_name):
 
         self.name = task_name
@@ -795,7 +795,7 @@ class QWorker(QtCore.QThread):
         connect(self.started, self.__payload.start)
         connect(self.__payload.taskDone, self.quit)
 
-    @Slot()
+    @QSlot()
     def quit(self):
         self.__payload.abort()
         super(QWorker, self).quit()
@@ -861,7 +861,7 @@ class SimulationSetsControl(QtGui.QWidget):
         connect(self.__payload.calculationDone, self.__onCalculationDone)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onLaunchButtonClicked(self):
         connect(self.__payload.stage.invalidated, self.__onStageInvalidated)
 
@@ -879,7 +879,7 @@ class SimulationSetsControl(QtGui.QWidget):
         worker.wait()
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def __onTaskStarted(self, count):
         # logging.info("Initialize progress bar in '%s'" % thread_name())
         self.__progress_bar.setFormat("%%p%% (%%v/%s)" % count)
@@ -887,21 +887,21 @@ class SimulationSetsControl(QtGui.QWidget):
         self.__progress_bar.setValue(0)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onTaskDone(self):
         # logging.info("Simulation set done '%s'" % thread_name())
         self.wait_box.close()
         self.finished.emit(self.__payload)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onCalculationDone(self):
         number = self.__progress_bar.value() + 1
         # logging.info("Calculation #%s done reported by '%s'" % (number, thread_name()))
         self.__progress_bar.setValue(number)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onStageInvalidated(self):
         # logging.info("Wake all waiting variable in '%s'" % thread_name())
         self.__payload.variable_changed.wakeAll()
@@ -962,19 +962,19 @@ class OutputVariableBox(AbstractGroupBox):
         connect(self.__control_widget.finished, self.onFinished)
 
     # noinspection PyPep8Naming
-    @Slot(SimulationSetsPayload)
+    @QSlot(SimulationSetsPayload)
     def onFinished(self, results):
         self.finished.emit(results)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onTreeItemSelectionChanged(self):
         items = self.__output_variable_tree.selectedItems()
         self.__button_accept.setEnabled(self.__output_variable_tree.stage is None and bool(items))
         self.__button_reset.setEnabled(self.__output_variable_tree.stage is not None)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onAcceptButtonClicked(self):
         items = self.__output_variable_tree.selectedItems()
         self.__output_variable_tree.stage = items[0].text(OutputVariableTree.NAME_COLUMN)
@@ -982,17 +982,17 @@ class OutputVariableBox(AbstractGroupBox):
         self.__output_variable_tree.clearSelection()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onResetButtonClicked(self):
         self.__output_variable_tree.stage = None
         self.__control_widget.stage = None
         self.__output_variable_tree.clearSelection()
 
-    @Slot(list)
+    @QSlot(list)
     def set_input_variables(self, data):
         self.__control_widget.set_input_variables(data)
 
-    @Slot(dict)
+    @QSlot(dict)
     def set_input_values(self, data):
         self.__control_widget.set_input_values(data)
 
@@ -1023,7 +1023,7 @@ class ConfigurationTab(QStackWidgetTab):
         connect(self.__output_variables_box.finished, self.onFinished)
 
     # noinspection PyPep8Naming
-    @Slot(SimulationSetsPayload)
+    @QSlot(SimulationSetsPayload)
     def onFinished(self, results):
         self.finished.emit(results)
 
@@ -1153,14 +1153,14 @@ class SimulationResultsTab(QStackWidgetTab):
             self.__graph.setObject(self.__results, self.__results.stage.metrics[0], self.__sequence)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onButtonExchangeClicked(self):
         self.__sequence[0], self.__sequence[1] = self.__sequence[1], self.__sequence[0]
         index = self.__metric_combobox.currentIndex()
         self.__graph.setObject(self.__results, self.__results.stage.metrics[index], self.__sequence)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onButtonExportClicked(self):
         lines = self.__graph.axes.get_lines()
         if not lines:
@@ -1184,7 +1184,7 @@ class SimulationResultsTab(QStackWidgetTab):
         clipboard.setText(s.getvalue())
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def __onItemChanged(self, index):
         self.__graph.setObject(self.__results, self.__results.stage.metrics[index], self.__sequence)
 
@@ -1211,7 +1211,7 @@ class SimulationSets(QStackWidgetTab):
         connect(self.__configuration_tab.finished, self.__onFinished)
 
     # noinspection PyPep8Naming
-    @Slot(SimulationSetsPayload)
+    @QSlot(SimulationSetsPayload)
     def __onFinished(self, results):
         if results.name in self.__result_tabs:
             self.__result_tabs[results.name].setObject(results)

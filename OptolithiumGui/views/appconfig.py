@@ -26,7 +26,7 @@ import sys
 import helpers
 import config
 import logging as module_logging
-from qt import QtGui, QtCore, connect, Slot
+from qt import QtGui, QtCore, connect, QSlot
 from views.common import WarningBox
 from config import Configuration, MEGABYTE, MAXIMUM_DIALOG_BUTTON_WIDTH
 
@@ -153,7 +153,7 @@ class AppConfigurationView(QtGui.QDialog):
         super(AppConfigurationView, self).showEvent(*args, **kwargs)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onLayerMapEdit(self):
         filepath = self.map_path_edit.text()
         if os.path.isfile(filepath) and os.access(filepath, os.W_OK) or \
@@ -168,7 +168,7 @@ class AppConfigurationView(QtGui.QDialog):
             WarningBox(self, "Selected file %s can't be written" % filepath)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onBrowseLayerMapPath(self):
         file_path, _ = QtGui.QFileDialog.getOpenFileName(
             self, "Choose GDSII Layer Map File",
@@ -178,7 +178,7 @@ class AppConfigurationView(QtGui.QDialog):
             self.map_path_edit.setText(file_path)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onBrowseApplicationDatabase(self):
         file_path, _ = QtGui.QFileDialog.getOpenFileName(
             self, "Choose Application Database File",
@@ -188,7 +188,7 @@ class AppConfigurationView(QtGui.QDialog):
             self.db_path_edit.setText(file_path)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onPluginPathAdd(self):
         plugin_path = QtGui.QFileDialog.getExistingDirectory(
             self, "Choose Additional Plugins Directory",

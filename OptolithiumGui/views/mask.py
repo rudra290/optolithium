@@ -30,7 +30,7 @@ import tempfile
 from matplotlib.patches import Rectangle, Polygon
 import subprocess
 
-from qt import connect, disconnect, Slot, QtGui, QtCore
+from qt import connect, disconnect, QSlot, QtGui, QtCore
 from views.common import QStackWidgetTab, QFramedLabel, msgBox, ErrorBox, \
     ParameterGroupBox, QLoadDialogFactory, QGraphPlot, QuestionBox, rgbf
 from options.common import Abstract
@@ -113,7 +113,7 @@ class MaskCoordBox(ParameterGroupBox):
             self.setObject(mask)
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def updateValues(self):
         [left, bottom] = self.__mask.boundary[0]
         [right, top] = self.__mask.boundary[1]
@@ -294,7 +294,7 @@ class MaskPlot(QGraphPlot):
         self.__onValueChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onValueChanged(self):
         self.draw_graph()
 
@@ -442,14 +442,14 @@ class MaskView(QStackWidgetTab):
         self.__coordinates.setObject(self.__mask.container)
         self.__background.setObject(self.__mask.container)
 
-    @Slot()
+    @QSlot()
     def _load_mask(self):
         if self.__load_mask_dlg.exec_():
             mask = self.__load_mask_dlg.object
             logging.info("Load mask: %s [%s]" % (mask.name, type(mask).__name__))
             self.setObject(mask)
 
-    @Slot()
+    @QSlot()
     def _edit_mask(self):
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".gds2")
         is_ok = self.__mask.container.gds(tmp)
@@ -471,7 +471,7 @@ class MaskView(QStackWidgetTab):
         finally:
             os.unlink(tmp.name)
 
-    @Slot()
+    @QSlot()
     def _save_mask(self):
         mask_name = self.__name_edit.text()
         try:

@@ -27,7 +27,7 @@ import logging as module_logging
 from matplotlib.patches import Circle
 from scipy import interpolate
 
-from qt import QtGui, connect, Slot
+from qt import QtGui, connect, QSlot
 from views.common import QStackWidgetTab, QGraphPlot, ProlithColormap, show_traceback
 
 import helpers
@@ -417,19 +417,19 @@ class DiffractionPatternView(QStackWidgetTab):
         connect(self.__kx_spinbox.valueChanged, self.on_kx_spin_changed)
         connect(self.__ky_spinbox.valueChanged, self.on_ky_spin_changed)
 
-    @Slot(int)
+    @QSlot(int)
     def on_combobox_changed(self, indx):
         self.__graph.output_type = indx
 
-    @Slot(int)
+    @QSlot(int)
     def on_chkbox_toggled(self, state):
         self.__graph.draw_zero_term = bool(state)
 
-    @Slot(int)
+    @QSlot(int)
     def on_kx_spin_changed(self, value):
         self.__graph.current_x = value
 
-    @Slot(int)
+    @QSlot(int)
     def on_ky_spin_changed(self, value):
         self.__graph.current_y = value
 

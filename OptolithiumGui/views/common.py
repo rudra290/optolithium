@@ -27,7 +27,7 @@ import math
 import traceback
 import logging as module_logging
 
-from qt import QtGui, QtCore, connect, disconnect, Slot, GlobalSignals, backend_name
+from qt import QtGui, QtCore, connect, disconnect, QSlot, GlobalSignals, backend_name
 
 from metrics import MetricNotImplementedError
 
@@ -221,8 +221,8 @@ class QSliderNumeric(QtGui.QSlider):
         connect(self.__p_object.signals[self.__field], self.__onValueChanged)
 
     # noinspection PyPep8Naming
-    @Slot()
-    @Slot(int)
+    @QSlot()
+    @QSlot(int)
     def __onValueChanged(self, *args):
         # args is not empty only when event come from Gui
         # if event come from p_object then args is empty and it's only flag
@@ -297,13 +297,13 @@ class QLineEditNumeric(QtGui.QLineEdit):
             self.setText(str())
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __changeText(self):
         value = getattr(self.__p_object, self.__field.key)
         self.setText(str(value))
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onEditingFinished(self):
         # logging.info("Value after edit finished: %s" % self.text())
         if self.__p_object is not None:
@@ -395,7 +395,7 @@ class QObjectNumeric(QtCore.QObject):
             self.__value = None
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __field_changed(self):
         self.__value = getattr(self.__p_object, self.__field.key)
 
@@ -435,7 +435,7 @@ class QComboBoxEnum(QtGui.QComboBox):
         self.setCurrentIndex(self.findText(getattr(self.__p_object, self.__field.key)))
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def __onIndexChanged(self, index):
         if self.__p_object is not None:
             value = str(self.itemText(index))
@@ -496,7 +496,7 @@ class QLabelMulti(QtGui.QLabel):
         self.__onTextChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def __onTextChanged(self):
         values = [getattr(obj, field.key) if getattr(obj, field.key) is not None else "- Undefined -"
                   for obj, field in self._enum_items()]

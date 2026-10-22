@@ -218,6 +218,11 @@ else
     fi
     chmod +x "$FINAL_DIST/optolithium"
 
+    # Bundle plugins (contains C++ shared libraries skipped by include-data-dir)
+    if [ -d "$GUI_DIR/plugins" ]; then
+        cp -a "$GUI_DIR/plugins" "$FINAL_DIST/"
+    fi
+
     # Bundle native system libraries (e.g. libfftw3)
     for lib in /lib64/libfftw3.so* /usr/lib64/libfftw3.so*; do
         if [ -f "$lib" ]; then

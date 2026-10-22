@@ -26,7 +26,7 @@ import numpy
 import logging as module_logging
 
 from database import orm
-from qt import QtGui, connect, disconnect, Slot
+from qt import QtGui, connect, disconnect, QSlot
 from views.common import QStackWidgetTab, QLineEditNumeric, QGraphPlot
 
 import config
@@ -104,7 +104,7 @@ class DevelopmentGraph(QGraphPlot):
             self._ax.clear()
             self.redraw()
 
-    @Slot()
+    @QSlot()
     def update_graph(self):
         self.__draw_graph(self.__developer)
 

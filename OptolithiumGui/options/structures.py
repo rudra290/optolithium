@@ -29,7 +29,7 @@ import logging as module_logging
 from pcpi import PluginNotFoundError
 from resources import Resources
 from options.common import Abstract, Variable, Numeric, Enum, ReportTemplates, AttributedProperty
-from qt import QtCore, connect, Slot, disconnect, Signal, GlobalSignals
+from qt import QtCore, connect, QSlot, disconnect, Signal, GlobalSignals
 from database import orm
 from metrics import VARIATE_HEIGHT_FALSE, VARIATE_HEIGHT_TRUE, MASK_CLEAR, MASK_OPAQUE
 
@@ -120,7 +120,7 @@ class AbstractOptionsBase(QtCore.QObject, AbstractReportOption):
         self.onOptionChanged()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def onOptionChanged(self):
         # emit_required = self.__saved or self.__simulated
         # sender_str = " by %s" % self.sender() if self.sender() else ""

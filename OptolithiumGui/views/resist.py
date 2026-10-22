@@ -24,7 +24,7 @@
 
 import logging as module_logging
 
-from qt import QtGui, QtCore, connect, disconnect, Slot
+from qt import QtGui, QtCore, connect, disconnect, QSlot
 from database import orm
 from database.common import ApplicationDatabase
 from views.common import QStackWidgetTab, QLineEditNumeric, QGraphPlot, QLabel, QuestionBox, ErrorBox, msgBox
@@ -249,7 +249,7 @@ class LoadResistDialog(QtGui.QDialog):
         self.update_resists()
         super(LoadResistDialog, self).showEvent(*args, **kwargs)
 
-    @Slot()
+    @QSlot()
     def _change_resist(self):
         resist = self.dbresist
         if resist is not None:
@@ -319,7 +319,7 @@ class ResistExposureTab(AbstractResistTab):
                     self.redraw()
 
             # noinspection PyPep8Naming
-            @Slot()
+            @QSlot()
             def __onValueChanged(self):
                 self.draw_graph(self.__resist.peb, self.__temp.value)
 
@@ -553,7 +553,7 @@ class ResistDevelopmentTab(AbstractResistTab):
             self.__layout.addStretch()
             self.__layout.addWidget(self.__dev_rate_graph)
 
-        @Slot()
+        @QSlot()
         def _temporary_box_unchecked(self):
             if not self.__temporary_check_box.isChecked():
                 replay = QuestionBox(
@@ -573,7 +573,7 @@ class ResistDevelopmentTab(AbstractResistTab):
                     self.__temporary_check_box.setChecked(True)
 
         # noinspection PyPep8Naming
-        @Slot(int)
+        @QSlot(int)
         def __onIndexChanged(self, index):
             name = str(self.__dev_models.itemText(index))
             view = self.__views[name]
@@ -669,7 +669,7 @@ class ResistDevelopmentTab(AbstractResistTab):
         self.__vlayout.addStretch()
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def __onIndexChanged(self, index):
         name = str(self.__dev_name_combobox.itemText(index))
         if not name:
@@ -710,12 +710,12 @@ class ResistDevelopmentTab(AbstractResistTab):
                 developer.assign(self.__resist.developer)
                 self.__appdb.commit()
 
-    @Slot()
+    @QSlot()
     def _save_developer(self):
         name = str(self.__dev_name_combobox.currentText())
         self._save_developer_payload(name)
 
-    @Slot()
+    @QSlot()
     def _save_developer_as(self):
         name, is_accept = QtGui.QInputDialog.getText(
             self.parent(), "Save developer as...",
@@ -778,7 +778,7 @@ class ResistView(QStackWidgetTab):
         self.__header_layout.addWidget(self.__label_name)
         self.__header_layout.addWidget(self.__edit_name)
 
-    @Slot()
+    @QSlot()
     def _load_resist(self):
         load_resist_dlg = LoadResistDialog(self.parent(), self.__appdb)
         if load_resist_dlg.exec_():
@@ -791,7 +791,7 @@ class ResistView(QStackWidgetTab):
             self.__wafer_process.resist = structures.Resist(db_resist, thickness)
             self.setObject(self.__wafer_process.resist)
 
-    @Slot()
+    @QSlot()
     def _save_resist(self):
 
         def get_db_developer(_resist):
@@ -865,7 +865,7 @@ class ResistView(QStackWidgetTab):
             tab.setObject(resist)
 
     # noinspection PyPep8Naming
-    @Slot(int)
+    @QSlot(int)
     def __onTabChanged(self, *args):
         for tab in self._enumerate_tabs():
             tab.onSetActive()

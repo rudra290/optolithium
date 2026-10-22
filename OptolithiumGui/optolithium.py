@@ -29,7 +29,7 @@ import webbrowser
 import psutil
 import config
 
-from qt import QtCore, QtGui, connect, Slot, backend_name
+from qt import QtCore, QtGui, connect, QSlot, backend_name
 from qt import core_version as QtCoreVersion
 from qt import version as QtBackendVersion
 
@@ -238,7 +238,7 @@ class MainWindow(QtGui.QMainWindow):
         self.show()
 
     # noinspection PyPep8Naming
-    @Slot()
+    @QSlot()
     def setApplicationTitle(self):
         self.setWindowTitle("%s - [%s]%s" % (
             config.APPLICATION_NAME,
@@ -365,7 +365,7 @@ class MainWindow(QtGui.QMainWindow):
         else:
             event.ignore()
 
-    @Slot()
+    @QSlot()
     def new_options(self):
         if self.options_modified_handler():
             default_options = self.options.default()
@@ -373,7 +373,7 @@ class MainWindow(QtGui.QMainWindow):
             for tab in self.tabs.values():
                 tab.reset()
 
-    @Slot()
+    @QSlot()
     def save_options(self):
         if not self.options.coupled:
             path, _ = QtGui.QFileDialog.getSaveFileName(
@@ -387,7 +387,7 @@ class MainWindow(QtGui.QMainWindow):
         self.statusBar().showMessage("Options has been successfully saved to %s" % path,
                                      config.STATUS_BAR_MESSAGE_DURATION)
 
-    @Slot()
+    @QSlot()
     def save_options_as(self):
         path, _ = QtGui.QFileDialog.getSaveFileName(
             self.centralWidget(), "Save Options As...", self.options.path, config.OPTIONS_EXTENSION)
@@ -420,7 +420,7 @@ class MainWindow(QtGui.QMainWindow):
 
         logging.info("Options has been successfully loaded from %s" % path)
 
-    @Slot()
+    @QSlot()
     def load_options(self):
         if self.options_modified_handler():
             path, _ = QtGui.QFileDialog.getOpenFileName(

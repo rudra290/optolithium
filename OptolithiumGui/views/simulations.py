@@ -31,7 +31,7 @@ from matplotlib.collections import PathCollection
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib.colors import BoundaryNorm
 # from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from qt import QtGui, QtCore, connect, Slot
+from qt import QtGui, QtCore, connect, QSlot
 from config import COMMON_LINES_COLOR, RESIST_FILL_COLOR, RESIST_LINES_COLOR, RESIST_CONTOUR_COLOR
 from views.common import QStackWidgetTab, QGraphPlot, QMetrologyTable, \
     ProlithColormap, show_traceback, NavigationToolbar
@@ -733,7 +733,7 @@ def SimulationViewsFactory(graph_class):
         def options(self):
             return self.__options
 
-        @Slot(bool)
+        @QSlot(bool)
         def on_draw_mask_chkbox_toggled(self, state):
             self._graph.draw_mask = state
 
