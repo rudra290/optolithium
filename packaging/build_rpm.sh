@@ -130,17 +130,13 @@ mkdir -p "$STAGING/usr/share/icons/hicolor/128x128/apps"
 mkdir -p "$STAGING/usr/share/pixmaps"
 
 if [ "$USE_NUITKA" = true ]; then
-    if [ -d "$REPO_DIR/dist/nuitka/optolithium.dist" ] && [ "$FORCE_REBUILD" = false ]; then
-        echo "==> Using existing Nuitka standalone build from dist/nuitka/optolithium.dist..."
-        mkdir -p "$INSTALL_OPT"
-        cp -a "$REPO_DIR/dist/nuitka/optolithium.dist"/* "$INSTALL_OPT/"
-    else
-        echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
-        NUITKA_OUT="$RPM_TMP_DIR/nuitka"
-        bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
-        mkdir -p "$INSTALL_OPT"
-        cp -a "$NUITKA_OUT/optolithium.dist"/* "$INSTALL_OPT/"
-    fi
+    # Always compile from the current source tree. Reusing dist/nuitka here can
+    # silently package an old binary after Python sources have changed.
+    echo "==> Compiling Optolithium with Nuitka into standalone native distribution..."
+    NUITKA_OUT="$RPM_TMP_DIR/nuitka"
+    bash "$REPO_DIR/packaging/build_nuitka.sh" --standalone --output-dir "$NUITKA_OUT"
+    mkdir -p "$INSTALL_OPT"
+    cp -a "$NUITKA_OUT/optolithium.dist"/* "$INSTALL_OPT/"
     ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
 else
     # 1. Copy application files (excluding Windows binaries, temporary caches, and logs)
