@@ -687,6 +687,8 @@ def SimulationViewsFactory(graph_class):
             self.__stage = stage
 
             self.__metrology_label = QtGui.QLabel("Metrology results:", self)
+            self.__displayed_result = None
+            self.__displayed_metrics_kwargs = None
 
             self._parameters = QMetrologyTable(self, stage.metrics)
 
@@ -739,13 +741,23 @@ def SimulationViewsFactory(graph_class):
 
         @show_traceback
         def onSetActive(self):
-            data = self.__stage.calculate()
+            self.__show_result(self.__stage.calculate())
+
+        @show_traceback
+        def __show_result(self, data):
+            metrics_kwargs = self.__stage.metrics_kwargs
+            if (data is self.__displayed_result and
+                    metrics_kwargs == self.__displayed_metrics_kwargs):
+                return
+
             axes_names = AXES_NAMES_MAPPING[data.axes]
             self._x_axis_edit.setText(axes_names[0])
             self._y_axis_edit.setText(axes_names[1])
             self._draw_mask_chkbox.setEnabled(data.axes == oplc.XY_2D)
-            self._graph.draw_graph(data, self.__stage.name, **self.__stage.metrics_kwargs)
-            self._parameters.setObject(data, **self.__stage.metrics_kwargs)
+            self._graph.draw_graph(data, self.__stage.name, **metrics_kwargs)
+            self._parameters.setObject(data, **metrics_kwargs)
+            self.__displayed_result = data
+            self.__displayed_metrics_kwargs = metrics_kwargs
 
     return _AbstractSimulationsView
 
