@@ -28,7 +28,7 @@ import psutil
 from qt import QtGui, QtCore, connect, QSlot
 from views.common import QStackWidgetTab, QFramedLabel, QSliderNumeric, QLineEditNumeric, QComboBoxEnum
 from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid, \
-    MAPPED_CUBE_THRESHOLD_BYTES, MAPPED_VOLUME_WORKING_SET_BYTES
+    MAPPED_CUBE_THRESHOLD_BYTES, estimate_develop_contours_resident_bytes
 
 from options.structures import Abstract, Numeric, Variable
 
@@ -145,7 +145,7 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._info_layout.addRow("System memory available:", QFramedLabel(self, self._mem_free, frmt=fmt))
         self._info_layout.addRow("System memory total:", QFramedLabel(self, self._mem_total, frmt=fmt))
         self._info_layout.addRow("Aerial image memory req.:", QFramedLabel(self, self._mem_ai_required, frmt=fmt))
-        self._info_layout.addRow("Resist 3D RAM estimate:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
+        self._info_layout.addRow("Resist 3D RAM upper bound:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
         self._info_layout.addRow(
             "Resist 3D disk estimate:", QFramedLabel(self, self._mem_3d_storage_required, frmt=fmt))
         self._info_layout.addRow("Source shape grid:", QFramedLabel(self, self._source_shape_grid, frmt="%.03f um"))
@@ -194,13 +194,14 @@ class SystemMemoryView(QtGui.QGroupBox):
         volume_bytes = nx * ny * nz * self.double_precision
         worker_bytes = estimate_aerial_worker_memory_bytes(
             nx, ny, with_reflection_cache=True)
+        aerial_bytes = worker_bytes + nx * ny * self.double_precision
+        development_bytes = estimate_develop_contours_resident_bytes(volume_bytes)
         if volume_bytes < MAPPED_CUBE_THRESHOLD_BYTES:
-            # Small cubes stay in RAM, so all five pipeline arrays contribute.
-            return float(self.stages_count * volume_bytes)
-        # The fast-marching solver keeps per-voxel state in RAM; the volume
-        # estimate approximates those arrays, plus two mapped working windows.
-        return float(max(volume_bytes + 2 * MAPPED_VOLUME_WORKING_SET_BYTES,
-                         worker_bytes + 2 * MAPPED_VOLUME_WORKING_SET_BYTES))
+            # Small cubes stay in RAM; the solver estimate includes the five
+            # volume stages plus its worst-case heap growth.
+            return float(max(self.stages_count * volume_bytes, development_bytes,
+                             aerial_bytes))
+        return float(max(development_bytes, aerial_bytes))
 
     def _calc_required_storage_3d(self):
         sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]

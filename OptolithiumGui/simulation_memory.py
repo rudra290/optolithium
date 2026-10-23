@@ -7,6 +7,9 @@ MEBIBYTE = 1024 * 1024
 AERIAL_WORKER_MEMORY_BUDGET_BYTES = 256 * MEBIBYTE
 MAPPED_CUBE_THRESHOLD_BYTES = (64 * MEBIBYTE if os.name != "nt" else (1 << 63) - 1)
 MAPPED_VOLUME_WORKING_SET_BYTES = 128 * MEBIBYTE
+FMM_CORE_BYTES_PER_VOXEL = 8  # two int arrays: heap handles and point status
+FMM_HEAP_ENTRY_BYTES = 52  # int heap index plus the 48-byte 3D FMM heap node
+FMM_HEAP_GROWTH_PEAK_FACTOR = 3  # old and doubled heap coexist while growing
 REFLECTION_CACHE_ENTRY_LIMIT = 8192
 
 # The native cache stores a tree node and an allocated complex vector per entry.
@@ -59,3 +62,31 @@ def estimate_volume_resident_bytes(volume_bytes):
     if volume_bytes < MAPPED_CUBE_THRESHOLD_BYTES:
         return int(volume_bytes)
     return MAPPED_VOLUME_WORKING_SET_BYTES
+
+
+def estimate_fast_marching_memory_bytes(voxel_count):
+    """Conservatively bound the fast-marching solver's anonymous workspace.
+
+    The solver keeps two int arrays for every voxel. Its binary heap stores a
+    48-byte node and a 4-byte heap index per entry. Heap growth briefly keeps
+    the old and doubled allocations alive, so the peak bound allows three
+    heap capacities for every voxel.
+    """
+    voxel_count = max(0, int(voxel_count))
+    return voxel_count * (
+        FMM_CORE_BYTES_PER_VOXEL +
+        FMM_HEAP_ENTRY_BYTES * FMM_HEAP_GROWTH_PEAK_FACTOR)
+
+
+def estimate_develop_contours_resident_bytes(volume_bytes):
+    """Estimate peak RAM for development, including the FMM heap."""
+    volume_bytes = max(0, int(volume_bytes))
+    voxel_count = volume_bytes // 8
+    if volume_bytes < MAPPED_CUBE_THRESHOLD_BYTES:
+        # Image, latent, PEB, output and rate cubes are all ordinary RAM arrays.
+        pipeline_bytes = 5 * volume_bytes
+    else:
+        # The PEB input, output and rates cubes are mapped; older mapped stages
+        # are reclaimable cache and are accounted for by the OS memory query.
+        pipeline_bytes = 3 * MAPPED_VOLUME_WORKING_SET_BYTES
+    return estimate_fast_marching_memory_bytes(voxel_count) + pipeline_bytes

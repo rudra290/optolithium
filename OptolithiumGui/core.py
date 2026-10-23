@@ -31,7 +31,7 @@ from qt import QtCore, Signal, connect, QSlot
 from metrics import IMAGE_NEGATIVE, IMAGE_POSITIVE, \
     CONTOUR_METRICS, IMAGE_METRICS, PROFILE_METRICS, STANDING_WAVES_METRICS
 from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid, \
-    estimate_volume_resident_bytes
+    estimate_volume_resident_bytes, estimate_develop_contours_resident_bytes
 
 
 __author__ = 'Alexei Gladkikh'
@@ -535,13 +535,18 @@ class DevelopContoursStage(AbstractStage):
 
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
 
-        # Result and rate cubes are disk-backed. The fast-marching solver still
-        # needs per-voxel RAM state, estimated at one double per voxel, plus
-        # two mapped working windows.
+        # The result and rate cubes are disk-backed, but the fast-marching
+        # solver uses per-voxel status arrays and a growing in-memory heap.
         volume_bytes = _resist_volume_bytes(peb_latent_image)
+        voxel_count = volume_bytes // 8
+        if voxel_count > 0x7fffffff:
+            raise MemoryError(
+                "Develop Time Contours has %d voxels, beyond the solver's "
+                "32-bit grid-index limit. Increase the X/Y or Z grid spacing "
+                "in Numerics and try again." % voxel_count)
         _require_simulation_memory(
             "Develop Time Contours",
-            volume_bytes + 2 * estimate_volume_resident_bytes(volume_bytes))
+            estimate_develop_contours_resident_bytes(volume_bytes))
 
         develop_contours = oplc.develop_time_contours(peb_latent_image, resist)
 
