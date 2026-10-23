@@ -29,6 +29,7 @@ from numpy import angle
 from qt import QtCore, Signal, connect, QSlot
 from metrics import IMAGE_NEGATIVE, IMAGE_POSITIVE, \
     CONTOUR_METRICS, IMAGE_METRICS, PROFILE_METRICS, STANDING_WAVES_METRICS
+from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid
 
 
 __author__ = 'Alexei Gladkikh'
@@ -62,6 +63,34 @@ def _available_memory_bytes():
         except (IOError, OSError, ValueError):
             continue
     return available
+
+
+def _require_simulation_memory(stage_name, requested_bytes):
+    """Fail before a large allocation if the available memory is too low."""
+    available_bytes = _available_memory_bytes()
+    # Reserve 30% of currently available memory for allocator overhead,
+    # FFT plans, and other process activity.
+    if requested_bytes > available_bytes * 0.70:
+        raise MemoryError(
+            "%s is estimated to need about %.1f GiB, but only %.1f GiB is "
+            "available with the 30%% safety reserve. Increase the X/Y or Z grid spacing "
+            "in Numerics and try again." % (
+                stage_name,
+                requested_bytes / float(1024 ** 3),
+                available_bytes / float(1024 ** 3)))
+
+
+def _diffraction_axis_count(numerical_aperture, wavelength, pitch, source_min, source_max):
+    if pitch == 0.0 or wavelength <= 0.0:
+        return 1
+    k_min = -int(math.floor(numerical_aperture * (1.0 - source_min) / wavelength * pitch))
+    k_max = int(math.floor(numerical_aperture * (1.0 + source_max) / wavelength * pitch))
+    return max(1, k_max - k_min + 1)
+
+
+def _resist_volume_bytes(volume):
+    # ArmaNpy exposes the native cube through a shared-memory NumPy view.
+    return int(volume.values.nbytes)
 
 core_logging = oplc.OptolithiumCoreLog()
 core_logging.set_verbose_level(4)
@@ -251,6 +280,17 @@ class DiffractionStage(AbstractStage):
         mask = self.core_options.mask()
         imaging_tool = self.core_options.imaging_tool()
 
+        pitch = mask.pitch()
+        source_shape = imaging_tool.source_shape()
+        cols = _diffraction_axis_count(
+            imaging_tool.numeric_aperture, imaging_tool.wavelength, pitch.x,
+            source_shape.sx_min(), source_shape.sx_max())
+        rows = _diffraction_axis_count(
+            imaging_tool.numeric_aperture, imaging_tool.wavelength, pitch.y,
+            source_shape.sy_min(), source_shape.sy_max())
+        diffraction_bytes = rows * cols * 24 + (rows + cols) * 64
+        _require_simulation_memory("Diffraction", diffraction_bytes)
+
         diffraction = oplc.diffraction(imaging_tool, mask)
 
         logging.log(
@@ -286,6 +326,13 @@ class AerialImageStage(AbstractStage):
         numerics = self.core_options.numerics()
         imaging_tool = self.core_options.imaging_tool()
         exposure_focus = self.core_options.exposure()
+
+        pitch = diffraction.pitch
+        nx, ny, _ = estimate_resist_grid(
+            pitch.x, pitch.y, 0.0, numerics.grid_xy.value, numerics.grid_z.value)
+        plane_bytes = nx * ny * 8
+        worker_bytes = estimate_aerial_worker_memory_bytes(nx, ny)
+        _require_simulation_memory("Aerial Image", plane_bytes + worker_bytes)
 
         otf = oplc.OpticalTransferFunction(imaging_tool, exposure_focus)
         aerial_image = oplc.aerial_image(diffraction, otf, numerics.grid_xy.value)
@@ -368,20 +415,12 @@ class ImageInResistStage(AbstractStage):
         pitch = diffraction.pitch
         grid_xy = numerics.grid_xy.value
         grid_z = numerics.grid_z.value
-        nx = int(math.ceil(pitch.x / grid_xy)) + 1
-        ny = int(math.ceil(pitch.y / grid_xy)) + 1
-        nz = int(math.ceil(wafer_stack.resist().thickness / grid_z)) + 1
-        volume_bytes = nx * ny * max(1, nz) * 8
-        plane_bytes = nx * ny * 8
-        estimated_bytes = 2 * volume_bytes + 4 * plane_bytes
-        available_bytes = _available_memory_bytes()
-        if estimated_bytes > available_bytes * 0.70:
-            raise MemoryError(
-                "This resist image is estimated to need about %.1f GiB of memory, "
-                "but only %.1f GiB is currently available. Increase the X/Y or Z "
-                "grid spacing in Numerics and try again." % (
-                    estimated_bytes / float(1024 ** 3),
-                    available_bytes / float(1024 ** 3)))
+        nx, ny, nz = estimate_resist_grid(
+            pitch.x, pitch.y, wafer_stack.resist().thickness, grid_xy, grid_z)
+        volume_bytes = nx * ny * nz * 8
+        worker_bytes = estimate_aerial_worker_memory_bytes(
+            nx, ny, with_reflection_cache=True)
+        _require_simulation_memory("Image in Resist", volume_bytes + worker_bytes)
 
         image_in_resist = oplc.image_in_resist(diffraction, otf, numerics.grid_xy.value, numerics.grid_z.value)
 
@@ -427,6 +466,8 @@ class LatentImageStage(AbstractStage):
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
         exposure = self.core_options.exposure()
 
+        _require_simulation_memory("Exposed Latent Image", _resist_volume_bytes(image_in_resist))
+
         latent_image = oplc.latent_image(image_in_resist, resist, exposure)
 
         logging.log(
@@ -471,6 +512,8 @@ class PebLatentImageStage(AbstractStage):
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
         peb = self.core_options.post_exposure_bake()
 
+        _require_simulation_memory("PEB Latent Image", _resist_volume_bytes(latent_image))
+
         peb_latent_image = oplc.peb_latent_image(latent_image, resist, peb)
 
         logging.log(
@@ -513,6 +556,11 @@ class DevelopContoursStage(AbstractStage):
         peb_latent_image = self.pre_stage.calculate()
 
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
+
+        # Development allocates both the output time volume and a full rates
+        # volume while all upstream stage results remain cached.
+        _require_simulation_memory(
+            "Develop Time Contours", 2 * _resist_volume_bytes(peb_latent_image))
 
         develop_contours = oplc.develop_time_contours(peb_latent_image, resist)
 

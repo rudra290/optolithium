@@ -27,8 +27,8 @@ import psutil
 
 from qt import QtGui, QtCore, connect, QSlot
 from views.common import QStackWidgetTab, QFramedLabel, QSliderNumeric, QLineEditNumeric, QComboBoxEnum
+from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid
 
-from config import MEGABYTE
 from options.structures import Abstract, Numeric, Variable
 
 import config
@@ -87,7 +87,7 @@ class TargetGridView(QtGui.QGroupBox):
 class SystemMemoryView(QtGui.QGroupBox):
 
     double_precision = 8
-    stages_count = 4
+    stages_count = 5
 
     class GridLayout(QtGui.QGridLayout):
         def __init__(self, *args, **kwargs):
@@ -120,8 +120,12 @@ class SystemMemoryView(QtGui.QGroupBox):
         connect(self._numerics.speed_factor.signals[Abstract], self._speed_factor_updated)
 
         usage = psutil.virtual_memory()
+        self._process = psutil.Process()
+        process_rss = self._process.memory_info().rss
         mem_ai_required = self._calc_required_memory_ai()
         mem_3d_required = self._calc_required_memory_3d()
+        self._mem_application = Variable(
+            Numeric(dtype=float), value=float(process_rss), name="ApplicationRss")
         self._mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")
         self._mem_free = Variable(Numeric(dtype=float), value=float(usage.free), name="FreeMemory")
         self._mem_total = Variable(Numeric(dtype=float), value=float(usage.total), name="TotalMemory")
@@ -132,9 +136,10 @@ class SystemMemoryView(QtGui.QGroupBox):
             Numeric(dtype=float), value=float(numerics.source_stepxy), name="SourceShapeGrid")
 
         self._info_layout = SystemMemoryView.GridLayout()
-        self._info_layout.addRow("Virtual memory used:", QFramedLabel(self, self._mem_used, frmt=fmt))
-        self._info_layout.addRow("Memory available:", QFramedLabel(self, self._mem_free, frmt=fmt))
-        self._info_layout.addRow("Memory total:", QFramedLabel(self, self._mem_total, frmt=fmt))
+        self._info_layout.addRow("Application memory (RSS):", QFramedLabel(self, self._mem_application, frmt=fmt))
+        self._info_layout.addRow("System memory used:", QFramedLabel(self, self._mem_used, frmt=fmt))
+        self._info_layout.addRow("System memory available:", QFramedLabel(self, self._mem_free, frmt=fmt))
+        self._info_layout.addRow("System memory total:", QFramedLabel(self, self._mem_total, frmt=fmt))
         self._info_layout.addRow("Aerial image memory req.:", QFramedLabel(self, self._mem_ai_required, frmt=fmt))
         self._info_layout.addRow("Resist 2D/3D memory req.:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
         self._info_layout.addRow("Source shape grid:", QFramedLabel(self, self._source_shape_grid, frmt="%.03f um"))
@@ -166,22 +171,33 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._mem_3d_required.value = self._calc_required_memory_3d()
 
     def _calc_required_memory_ai(self):
-        # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
         sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]
-
-        vx = (sizes.x / self._numerics.grid_xy.value + 1.0) if sizes.x != 0.0 else 1.0
-        vy = (sizes.y / self._numerics.grid_xy.value + 1.0) if sizes.y != 0.0 else 1.0
-
-        return self.double_precision * vx * vy
+        nx, ny, _ = estimate_resist_grid(
+            sizes.x, sizes.y, 0.0,
+            self._numerics.grid_xy.value, self._numerics.grid_z.value)
+        plane_bytes = nx * ny * self.double_precision
+        worker_bytes = estimate_aerial_worker_memory_bytes(nx, ny)
+        return float(plane_bytes + worker_bytes)
 
     def _calc_required_memory_3d(self):
-        # return 8 * (1000.0/self.__numerics.grid_xy.value)**2 * (1000.0/self.__numerics.grid_z.value)
-        vz = self._resist.thickness / self._numerics.grid_z.value + 1.0
-        return self.stages_count * self._calc_required_memory_ai() * vz
+        sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]
+        nx, ny, nz = estimate_resist_grid(
+            sizes.x, sizes.y, self._resist.thickness,
+            self._numerics.grid_xy.value, self._numerics.grid_z.value)
+        volume_bytes = nx * ny * nz * self.double_precision
+        worker_bytes = estimate_aerial_worker_memory_bytes(
+            nx, ny, with_reflection_cache=True)
+        # Peak at development: three upstream cubes plus the result and rates
+        # cubes; compare that with the earlier aerial worker/cache peak.
+        return float(max(self.stages_count * volume_bytes, volume_bytes + worker_bytes))
 
     @QSlot()
     def _update_memory(self):
         usage = psutil.virtual_memory()
+        try:
+            self._mem_application.value = float(self._process.memory_info().rss)
+        except psutil.Error:
+            pass
         self._mem_used.value = float(usage.used)
         self._mem_free.value = float(usage.available)
         self._mem_total.value = float(usage.total)
