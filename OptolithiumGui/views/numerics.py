@@ -27,7 +27,8 @@ import psutil
 
 from qt import QtGui, QtCore, connect, QSlot
 from views.common import QStackWidgetTab, QFramedLabel, QSliderNumeric, QLineEditNumeric, QComboBoxEnum
-from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid
+from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid, \
+    MAPPED_CUBE_THRESHOLD_BYTES, MAPPED_VOLUME_WORKING_SET_BYTES
 
 from options.structures import Abstract, Numeric, Variable
 
@@ -124,6 +125,7 @@ class SystemMemoryView(QtGui.QGroupBox):
         process_rss = self._process.memory_info().rss
         mem_ai_required = self._calc_required_memory_ai()
         mem_3d_required = self._calc_required_memory_3d()
+        mem_3d_storage_required = self._calc_required_storage_3d()
         self._mem_application = Variable(
             Numeric(dtype=float), value=float(process_rss), name="ApplicationRss")
         self._mem_used = Variable(Numeric(dtype=float), value=float(usage.used), name="UsedMemory")
@@ -131,6 +133,8 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._mem_total = Variable(Numeric(dtype=float), value=float(usage.total), name="TotalMemory")
         self._mem_ai_required = Variable(Numeric(dtype=float), value=mem_ai_required, name="RequiredAIMemory")
         self._mem_3d_required = Variable(Numeric(dtype=float), value=mem_3d_required, name="Required3DMemory")
+        self._mem_3d_storage_required = Variable(
+            Numeric(dtype=float), value=mem_3d_storage_required, name="Required3DStorage")
 
         self._source_shape_grid = Variable(
             Numeric(dtype=float), value=float(numerics.source_stepxy), name="SourceShapeGrid")
@@ -141,7 +145,9 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._info_layout.addRow("System memory available:", QFramedLabel(self, self._mem_free, frmt=fmt))
         self._info_layout.addRow("System memory total:", QFramedLabel(self, self._mem_total, frmt=fmt))
         self._info_layout.addRow("Aerial image memory req.:", QFramedLabel(self, self._mem_ai_required, frmt=fmt))
-        self._info_layout.addRow("Resist 2D/3D memory req.:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
+        self._info_layout.addRow("Resist 3D RAM estimate:", QFramedLabel(self, self._mem_3d_required, frmt=fmt))
+        self._info_layout.addRow(
+            "Resist 3D disk estimate:", QFramedLabel(self, self._mem_3d_storage_required, frmt=fmt))
         self._info_layout.addRow("Source shape grid:", QFramedLabel(self, self._source_shape_grid, frmt="%.03f um"))
 
         self._layout = QtGui.QVBoxLayout(self)
@@ -169,6 +175,7 @@ class SystemMemoryView(QtGui.QGroupBox):
         self._update_memory()
         self._mem_ai_required.value = self._calc_required_memory_ai()
         self._mem_3d_required.value = self._calc_required_memory_3d()
+        self._mem_3d_storage_required.value = self._calc_required_storage_3d()
 
     def _calc_required_memory_ai(self):
         sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]
@@ -187,9 +194,24 @@ class SystemMemoryView(QtGui.QGroupBox):
         volume_bytes = nx * ny * nz * self.double_precision
         worker_bytes = estimate_aerial_worker_memory_bytes(
             nx, ny, with_reflection_cache=True)
-        # Peak at development: three upstream cubes plus the result and rates
-        # cubes; compare that with the earlier aerial worker/cache peak.
-        return float(max(self.stages_count * volume_bytes, volume_bytes + worker_bytes))
+        if volume_bytes < MAPPED_CUBE_THRESHOLD_BYTES:
+            # Small cubes stay in RAM, so all five pipeline arrays contribute.
+            return float(self.stages_count * volume_bytes)
+        # The fast-marching solver keeps per-voxel state in RAM; the volume
+        # estimate approximates those arrays, plus two mapped working windows.
+        return float(max(volume_bytes + 2 * MAPPED_VOLUME_WORKING_SET_BYTES,
+                         worker_bytes + 2 * MAPPED_VOLUME_WORKING_SET_BYTES))
+
+    def _calc_required_storage_3d(self):
+        sizes = self._mask.container.boundary[1] - self._mask.container.boundary[0]
+        nx, ny, nz = estimate_resist_grid(
+            sizes.x, sizes.y, self._resist.thickness,
+            self._numerics.grid_xy.value, self._numerics.grid_z.value)
+        volume_bytes = nx * ny * nz * self.double_precision
+        if volume_bytes < MAPPED_CUBE_THRESHOLD_BYTES:
+            return 0.0
+        # Image, latent, PEB, development output, and development rates.
+        return float(self.stages_count * volume_bytes)
 
     @QSlot()
     def _update_memory(self):

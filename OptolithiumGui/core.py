@@ -20,6 +20,7 @@
 # license, please contact the author at gladkikhalexei@gmail.com
 
 import math
+import os
 import psutil
 import optolithiumc as oplc
 import logging as module_logging
@@ -29,7 +30,8 @@ from numpy import angle
 from qt import QtCore, Signal, connect, QSlot
 from metrics import IMAGE_NEGATIVE, IMAGE_POSITIVE, \
     CONTOUR_METRICS, IMAGE_METRICS, PROFILE_METRICS, STANDING_WAVES_METRICS
-from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid
+from simulation_memory import estimate_aerial_worker_memory_bytes, estimate_resist_grid, \
+    estimate_volume_resident_bytes
 
 
 __author__ = 'Alexei Gladkikh'
@@ -59,7 +61,26 @@ def _available_memory_bytes():
                 continue
             with open(usage_path, "r") as usage_file:
                 usage = int(usage_file.read().strip())
-            available = min(available, max(0, limit - usage))
+            reclaimable_file_cache = 0
+            stat_path = os.path.join(os.path.dirname(usage_path), "memory.stat")
+            memory_stats = {}
+            try:
+                with open(stat_path, "r") as stat_file:
+                    for line in stat_file:
+                        values = line.split(None, 1)
+                        if len(values) == 2:
+                            memory_stats[values[0]] = values[1].strip()
+            except (IOError, OSError):
+                pass
+            if limit_path.endswith("memory.max"):
+                file_cache = int(memory_stats.get("file", 0))
+                shared_memory = int(memory_stats.get("shmem", 0))
+                reclaimable_file_cache = max(0, file_cache - shared_memory)
+            else:
+                reclaimable_file_cache = int(memory_stats.get(
+                    "inactive_file", memory_stats.get("total_inactive_file", 0)))
+            effective_usage = max(0, usage - reclaimable_file_cache)
+            available = min(available, max(0, limit - effective_usage))
         except (IOError, OSError, ValueError):
             continue
     return available
@@ -420,7 +441,9 @@ class ImageInResistStage(AbstractStage):
         volume_bytes = nx * ny * nz * 8
         worker_bytes = estimate_aerial_worker_memory_bytes(
             nx, ny, with_reflection_cache=True)
-        _require_simulation_memory("Image in Resist", volume_bytes + worker_bytes)
+        plane_bytes = nx * ny * 8
+        _require_simulation_memory(
+            "Image in Resist", worker_bytes + estimate_volume_resident_bytes(plane_bytes))
 
         image_in_resist = oplc.image_in_resist(diffraction, otf, numerics.grid_xy.value, numerics.grid_z.value)
 
@@ -466,7 +489,9 @@ class LatentImageStage(AbstractStage):
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
         exposure = self.core_options.exposure()
 
-        _require_simulation_memory("Exposed Latent Image", _resist_volume_bytes(image_in_resist))
+        _require_simulation_memory(
+            "Exposed Latent Image",
+            estimate_volume_resident_bytes(_resist_volume_bytes(image_in_resist)))
 
         latent_image = oplc.latent_image(image_in_resist, resist, exposure)
 
@@ -512,7 +537,8 @@ class PebLatentImageStage(AbstractStage):
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
         peb = self.core_options.post_exposure_bake()
 
-        _require_simulation_memory("PEB Latent Image", _resist_volume_bytes(latent_image))
+        _require_simulation_memory(
+            "PEB Latent Image", estimate_volume_resident_bytes(_resist_volume_bytes(latent_image)))
 
         peb_latent_image = oplc.peb_latent_image(latent_image, resist, peb)
 
@@ -557,10 +583,13 @@ class DevelopContoursStage(AbstractStage):
 
         resist = oplc.ResistWaferLayer.cast(self.core_options.wafer_stack().resist())
 
-        # Development allocates both the output time volume and a full rates
-        # volume while all upstream stage results remain cached.
+        # Result and rate cubes are disk-backed. The fast-marching solver still
+        # needs per-voxel RAM state, estimated at one double per voxel, plus
+        # two mapped working windows.
+        volume_bytes = _resist_volume_bytes(peb_latent_image)
         _require_simulation_memory(
-            "Develop Time Contours", 2 * _resist_volume_bytes(peb_latent_image))
+            "Develop Time Contours",
+            volume_bytes + 2 * estimate_volume_resident_bytes(volume_bytes))
 
         develop_contours = oplc.develop_time_contours(peb_latent_image, resist)
 

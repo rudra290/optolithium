@@ -24,6 +24,7 @@
  */
 
 #include "opl_sim.h"
+#include "opl_mapped_cube.h"
 #include "opl_physc.h"
 #include "opl_conv.h"
 #include "opl_eikonal.h"
@@ -404,7 +405,9 @@ SharedResistVolume develop_time_contours(SharedResistVolume peb_latent_image, Sh
 
 	const arma::cube& values = *peb_latent_image->values();
 
-	arma::cube rates = arma::cube(values.n_rows, values.n_cols, values.n_slices);
+	std::shared_ptr<arma::cube> rates_storage = storage::make_cube(
+		values.n_rows, values.n_cols, values.n_slices);
+	arma::cube& rates = *rates_storage;
 
 //	LOG(INFO) << "Calculate development rates";
 	const size_t plane_size = static_cast<size_t>(rates.n_rows) * rates.n_cols;

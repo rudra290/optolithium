@@ -24,7 +24,9 @@
  */
 
 #include "opl_capi.h"
+#include "opl_mapped_cube.h"
 
+#include <algorithm>
 #include <cstddef>
 
 namespace {
@@ -119,7 +121,7 @@ namespace oplc {
 
         // VLOG(4) << "row = " << row << " col = " << col << " slices = " << slices;
 
-        this->_values = std::make_shared<arma::cube>(row, col, slices);
+        this->_values = storage::make_cube(row, col, slices);
         this->_x = std::make_shared<arma::vec>(col);
         this->_y = std::make_shared<arma::vec>(row);
         this->_z = std::make_shared<arma::vec>(slices);
@@ -145,10 +147,12 @@ namespace oplc {
         this->_y = std::make_shared<arma::vec>(*other._y);
         this->_z = std::make_shared<arma::vec>(*other._z);
         if (copydata) {
-            this->_values = std::make_shared<arma::cube>(
+            this->_values = storage::make_cube(
                     other._values->n_rows, other._values->n_cols, other._values->n_slices);
         } else {
-            this->_values = std::make_shared<arma::cube>(*other._values);
+            this->_values = storage::make_cube(
+                    other._values->n_rows, other._values->n_cols, other._values->n_slices);
+            std::copy(other._values->begin(), other._values->end(), this->_values->begin());
         }
     }
 
