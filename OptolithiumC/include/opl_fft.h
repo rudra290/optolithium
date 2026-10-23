@@ -25,6 +25,8 @@
 
 #include "opl_log.h"
 #include <stdint.h>
+#include <algorithm>
+#include <mutex>
 
 #if !defined(SWIG)
 // SWIG should not see #include <armadillo> as it can not handle it
@@ -62,6 +64,20 @@
 
 namespace fft {
 
+#if defined(OPTOLITHIUMC_USE_FFTW_LIBRARY) && defined(OPTOLITHIUMC_USE_FFTW_THREADS)
+    inline bool initialize_fftw_threads(void) {
+        static std::once_flag initialized;
+        static bool available = false;
+        std::call_once(initialized, []() { available = fftw_init_threads() != 0; });
+        return available;
+    }
+
+    inline std::mutex& fftw_planner_mutex(void) {
+        static std::mutex mutex;
+        return mutex;
+    }
+#endif
+
     enum direction_t {FFT_BACKWARD, FFT_FORWARD};
 
     class TransformInterface2d {
@@ -81,13 +97,25 @@ namespace fft {
         fft_plan_t _plan;
         fftw_complex *_raw_ptr;
     public:
-        FFTW2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1) {
+        FFTW2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1, int32_t thread_count = 1) {
             int fftw_dir = (dir == FFT_FORWARD) ? FFTW_FORWARD : FFTW_BACKWARD;
             this->_raw_ptr = reinterpret_cast<fftw_complex *>(&array(0, 0));
 
             {TIMED_SCOPE(aerial_image_fftw_plan, "Create fftw transform plan");
                 const uint32_t method = (uint32_t) (n_times > FFTW_METHOD_THRESHOLD ? FFTW_MEASURE : FFTW_ESTIMATE);
+#if defined(OPTOLITHIUMC_USE_FFTW_THREADS)
+                int plan_thread_count = std::max(1, static_cast<int>(thread_count));
+                if (!initialize_fftw_threads()) {
+                    plan_thread_count = 1;
+                }
+                std::lock_guard<std::mutex> lock(fftw_planner_mutex());
+                fftw_plan_with_nthreads(plan_thread_count);
                 this->_plan = fftw_plan_dft_2d(array.n_cols, array.n_rows, this->_raw_ptr, this->_raw_ptr, fftw_dir, method);
+                fftw_plan_with_nthreads(1);
+#else
+                (void) thread_count;
+                this->_plan = fftw_plan_dft_2d(array.n_cols, array.n_rows, this->_raw_ptr, this->_raw_ptr, fftw_dir, method);
+#endif
             }
         }
 
@@ -112,7 +140,9 @@ namespace fft {
         uint32_t _buf_size;
         uint32_t _n_elem;
     public:
-        KissFFT2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1) {
+        KissFFT2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1, int32_t thread_count = 1) {
+            (void) n_times;
+            (void) thread_count;
             printf("n_cols = %d, n_rows = %d\n", array.n_cols, array.n_rows);
             const int ndims = 2;
             const int dims[2] = {static_cast<int>(array.n_cols), static_cast<int>(array.n_rows)};
@@ -173,7 +203,9 @@ namespace fft {
         fft_plan_t* _plan;
         fft_complex_t * _raw_ptr;
     public:
-        Fourier2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1) {
+        Fourier2d(arma::cx_mat &array, direction_t dir, int32_t n_times = -1, int32_t thread_count = 1) {
+            (void) n_times;
+            (void) thread_count;
             int fft_dir = (dir == FFT_FORWARD) ? FFT_LITHO_FORWARD : FFT_LITHO_BACKWARD;
             this->_raw_ptr = reinterpret_cast<fft_complex_t *>(&array(0, 0));
             this->_plan = fft_plan_create_2d(

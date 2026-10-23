@@ -33,6 +33,144 @@
 #include <thread>
 #include <vector>
 #include <cmath>
+#include <algorithm>
+#include <exception>
+#include <memory>
+#include <mutex>
+
+namespace {
+
+unsigned int machine_thread_count(void) {
+	unsigned int count = std::thread::hardware_concurrency();
+	if (count == 0) {
+		count = 1;
+	}
+	return count;
+}
+
+unsigned int simulation_thread_count(size_t work_items) {
+	return static_cast<unsigned int>(std::min<size_t>(machine_thread_count(), std::max<size_t>(1, work_items)));
+}
+
+unsigned int simulation_thread_count_for(size_t work_items, size_t estimated_operations) {
+	return estimated_operations < 10000 ? 1 : simulation_thread_count(work_items);
+}
+
+template <typename Function>
+void parallel_for(size_t work_items, unsigned int worker_count, Function function) {
+	if (work_items == 0) {
+		return;
+	}
+	worker_count = std::max(1u, worker_count);
+	if (work_items < worker_count) {
+		worker_count = static_cast<unsigned int>(work_items);
+	}
+	if (worker_count == 1) {
+		for (size_t i = 0; i < work_items; ++i) {
+			function(i, 0);
+		}
+		return;
+	}
+
+	std::vector<std::thread> workers;
+	workers.reserve(worker_count);
+	std::exception_ptr worker_exception;
+	std::mutex exception_mutex;
+	const size_t chunk_size = work_items / worker_count;
+	const size_t remainder = work_items % worker_count;
+	try {
+		for (unsigned int worker = 0; worker < worker_count; ++worker) {
+			workers.emplace_back([&, worker]() {
+				const size_t begin = chunk_size * worker + std::min<size_t>(worker, remainder);
+				const size_t end = begin + chunk_size + (worker < remainder ? 1 : 0);
+				try {
+					for (size_t i = begin; i < end; ++i) {
+						function(i, worker);
+					}
+				} catch (...) {
+					std::lock_guard<std::mutex> lock(exception_mutex);
+					if (!worker_exception) {
+						worker_exception = std::current_exception();
+					}
+				}
+			});
+		}
+	} catch (...) {
+		for (auto& worker : workers) {
+			worker.join();
+		}
+		throw;
+	}
+	for (auto& worker : workers) {
+		worker.join();
+	}
+	if (worker_exception) {
+		std::rethrow_exception(worker_exception);
+	}
+}
+
+SharedOpticalTransferFunction make_worker_otf(SharedOpticalTransferFunction otf) {
+	ConstSharedWaferStack wafer_stack = otf->wafer_stack();
+	if (!wafer_stack) {
+		return otf;
+	}
+
+	// Each worker owns its reflection cache. WaferStack fills that cache lazily,
+	// so sharing it across concurrent OTF evaluations would race on its maps.
+	SharedWaferStack worker_stack = std::make_shared<WaferStack>(*wafer_stack);
+	SharedImagingTool imaging_tool = std::const_pointer_cast<ImagingTool>(otf->imaging_tool());
+	SharedExposure exposure = std::const_pointer_cast<Exposure>(otf->exposure());
+	return std::make_shared<OpticalTransferFunction>(imaging_tool, exposure, worker_stack);
+}
+
+struct AerialImageWorker {
+	arma::cx_mat efield;
+	arma::mat intensity;
+	std::unique_ptr<fft::FFT2d> transform;
+	SharedOpticalTransferFunction otf;
+
+	AerialImageWorker(uint32_t rows, uint32_t cols, int32_t fft_thread_count,
+			SharedOpticalTransferFunction otf) :
+		efield(rows, cols), intensity(rows, cols, arma::fill::zeros),
+		transform(new fft::FFT2d(efield, fft::FFT_BACKWARD, -1, fft_thread_count)), otf(otf) { }
+};
+
+void write_aerial_image_slice(SharedResistVolume result, uint32_t s,
+		const arma::mat& intensity, uint32_t n_rows, uint32_t n_cols) {
+	const uint32_t midcol = n_cols / 2;
+	const uint32_t midrow = n_rows / 2;
+	arma::mat& layer = result->values()->slice(s);
+	if (n_cols != 1 && n_rows == 1) {
+		for (uint32_t c = 0; c < midcol; c++) {
+			layer(0, c + midcol) = intensity(0, c);
+			layer(0, c) = intensity(0, c + midcol);
+		}
+		layer(0, n_cols) = layer(0, 0);
+	} else if (n_rows != 1 && n_cols == 1) {
+		for (uint32_t r = 0; r < midrow; r++) {
+			layer(r + midrow, 0) = intensity(r, 0);
+			layer(r, 0) = intensity(r + midrow, 0);
+		}
+		layer(n_rows, 0) = layer(0, 0);
+	} else if (n_rows != 1 && n_cols != 1) {
+		for (uint32_t r = 0; r < midrow; r++) {
+			for (uint32_t c = 0; c < midcol; c++) {
+				layer(r + midrow, c + midcol) = intensity(r, c);
+				layer(r, c) = intensity(r + midrow, c + midcol);
+				layer(r, c + midcol) = intensity(r + midrow, c);
+				layer(r + midrow, c) = intensity(r, c + midcol);
+
+				layer(n_rows, c) = layer(0, c);
+				layer(n_rows, c + midcol) = layer(0, c + midcol);
+			}
+			layer(r, n_cols) = layer(r, 0);
+			layer(r + midrow, n_cols) = layer(r + midrow, 0);
+		}
+		layer(n_rows, n_cols) = layer(0, 0);
+	}
+}
+
+} // namespace
 
 
 SharedDiffraction diffraction(SharedImagingTool imaging_tool, SharedMask mask)
@@ -69,9 +207,6 @@ void _calc_aerial_image(SharedResistVolume result, SharedDiffraction diffraction
 	const uint32_t n_cols = result->values()->n_cols != 1 ? result->values()->n_cols - 1 : result->values()->n_cols;
 	const uint32_t n_slices = result->values()->n_slices;
 
-	const uint32_t midcol = static_cast<uint32_t>(static_cast<double>(n_cols)/2.0);
-	const uint32_t midrow = static_cast<uint32_t>(static_cast<double>(n_rows)/2.0);
-
 	const uint32_t n_source_points = diffraction->source_shape->non_zeros()->n_rows;
 
 	const double na = diffraction->numeric_aperture;
@@ -82,82 +217,76 @@ void _calc_aerial_image(SharedResistVolume result, SharedDiffraction diffraction
 		throw std::invalid_argument("The result columns count must be even");
 	}
 
-	arma::cx_mat efield = arma::cx_mat(n_rows, n_cols);
+	const bool parallel_slices = n_slices > 1 && n_slices > n_source_points;
+	const size_t transform_size = static_cast<size_t>(n_rows) * n_cols;
+	const size_t reflection_cache_budget = otf->wafer_stack()
+			? 2 * static_cast<size_t>(8192) * 256 : 0;
+	const size_t bytes_per_worker = transform_size * (sizeof(arma::cx_double) + sizeof(double)) +
+			reflection_cache_budget;
+	const size_t aerial_worker_budget = 256 * static_cast<size_t>(1024) * 1024;
+	const size_t workers_by_memory = std::max<size_t>(1, aerial_worker_budget /
+			std::max<size_t>(1, bytes_per_worker));
+	const size_t work_items = parallel_slices ? n_slices : n_source_points;
+	const unsigned int worker_count = static_cast<unsigned int>(std::min<size_t>(
+		simulation_thread_count(work_items), workers_by_memory));
+	const int32_t fft_thread_count = worker_count == 1 && transform_size >= 65536
+			? static_cast<int32_t>(std::min(2u, machine_thread_count())) : 1;
+	std::vector<std::unique_ptr<AerialImageWorker>> workers;
+	workers.reserve(worker_count);
+	for (unsigned int worker = 0; worker < worker_count; ++worker) {
+		workers.emplace_back(new AerialImageWorker(n_rows, n_cols, fft_thread_count, make_worker_otf(otf)));
+	}
 
-	// Plan one reusable transform quickly. The third FFTW argument selects the
-	// planner strategy based on an estimated number of executions, but planning
-	// itself happens only once and MEASURE can be prohibitively expensive here.
-	fft::FFT2d fft_transform(efield, fft::FFT_BACKWARD);
+	auto calculate_source = [&](AerialImageWorker& worker, uint32_t k, double thickness) {
+		auto src_row_col = diffraction->source_shape->non_zeros()->row(k);
+		const double source_irradiance = diffraction->source_shape->value(src_row_col(0), src_row_col(1));
+		const double scx = na * diffraction->source_shape->cx(src_row_col(1));
+		const double scy = na * diffraction->source_shape->cy(src_row_col(0));
+		worker.efield.zeros();
 
-	for (uint32_t s = 0; s < n_slices; s++) {
-		const double thickness = result->z(s);
-
-		arma::mat intensity = arma::mat(n_rows, n_cols, arma::fill::zeros);
-
-		for (uint32_t k = 0; k < diffraction->source_shape->non_zeros()->n_rows; k++) {
-			// Get non-zeros intensity source shape point indexes
-			auto src_row_col = diffraction->source_shape->non_zeros()->row(k);
-
-			const double source_irradiance = diffraction->source_shape->value(src_row_col(0), src_row_col(1));
-			const double scx = na * diffraction->source_shape->cx(src_row_col(1));
-			const double scy = na * diffraction->source_shape->cy(src_row_col(0));
-
-			// Clear temporary array of current source shape electric field
-			efield.zeros();
-
-			{TIMED_SCOPE(aerial_image_diffraction, "Diffraction pattern generation done");
-				// Get non-zeros elements (according to current source shape point) and
-				// copy it to Fourier backward transform temporary matrix
-				for (uint32_t r = 0; r < diffraction->values()->n_rows; r++) {
-					for (uint32_t c = 0; c < diffraction->values()->n_cols; c++) {
-						double dcy = diffraction->cy(r);
-						double dcx = diffraction->cx(c);
-						uint32_t e_row = (n_rows + diffraction->ky(r) - 1) % n_rows;
-						uint32_t e_col = (n_cols + diffraction->kx(c) - 1) % n_cols;
-						efield(e_row, e_col) = otf->calc(dcx - scx, dcy - scy, thickness) * diffraction->value(r, c);
-					}
-				}
-			}
-
-			fft_transform.execute();
-
-			{TIMED_SCOPE(aerial_image_timer_intensity, "Intensity for given source shape point done");
-				// Calculate intensity for given source point and sum if with previous result
-				intensity += source_irradiance * arma::real(efield % arma::conj(efield));
+		for (uint32_t r = 0; r < diffraction->values()->n_rows; r++) {
+			for (uint32_t c = 0; c < diffraction->values()->n_cols; c++) {
+				double dcy = diffraction->cy(r);
+				double dcx = diffraction->cx(c);
+				uint32_t e_row = (n_rows + diffraction->ky(r) - 1) % n_rows;
+				uint32_t e_col = (n_cols + diffraction->kx(c) - 1) % n_cols;
+				worker.efield(e_row, e_col) = worker.otf->calc(dcx - scx, dcy - scy, thickness) * diffraction->value(r, c);
 			}
 		}
 
-		intensity *= (refractive_index / arma::accu(*diffraction->source_shape->values()));
+		worker.transform->execute();
+		worker.intensity += source_irradiance * arma::real(worker.efield % arma::conj(worker.efield));
+	};
 
-		// Save results to the output array and make fftshift and copy last point (Prolith symmetry)
-		arma::mat& layer = result->values()->slice(s);
-		if (n_cols != 1 && n_rows == 1) {
-			for (uint32_t c = 0; c < midcol; c++) {
-				layer(0, c + midcol) = intensity(0, c);
-				layer(0, c) = intensity(0, c + midcol);
+	if (parallel_slices) {
+		parallel_for(n_slices, worker_count, [&](size_t slice_index, unsigned int worker_index) {
+			const uint32_t s = static_cast<uint32_t>(slice_index);
+			AerialImageWorker& worker = *workers[worker_index];
+			worker.intensity.zeros();
+			const double thickness = result->z(s);
+			for (uint32_t k = 0; k < n_source_points; ++k) {
+				calculate_source(worker, k, thickness);
 			}
-			layer(0, n_cols) = layer(0, 0);
-		} else if (n_rows != 1 && n_cols == 1) {
-			for (uint32_t r = 0; r < midrow; r++) {
-				layer(r + midrow, 0) = intensity(r, 0);
-				layer(r, 0) = intensity(r + midrow, 0);
+			worker.intensity *= (refractive_index / arma::accu(*diffraction->source_shape->values()));
+			write_aerial_image_slice(result, s, worker.intensity, n_rows, n_cols);
+		});
+	} else {
+		for (uint32_t s = 0; s < n_slices; s++) {
+			const double thickness = result->z(s);
+			for (const auto& worker : workers) {
+				worker->intensity.zeros();
 			}
-			layer(n_rows, 0) = layer(0, 0);
-		} else if (n_rows != 1 && n_cols != 1) {
-			for (uint32_t r = 0; r < midrow; r++) {
-				for (uint32_t c = 0; c < midcol; c++) {
-					layer(r + midrow, c + midcol) = intensity(r, c);
-					layer(r, c) = intensity(r + midrow, c + midcol);
-					layer(r, c + midcol) = intensity(r + midrow, c);
-					layer(r + midrow, c) = intensity(r, c + midcol);
 
-					layer(n_rows, c) = layer(0, c);
-					layer(n_rows, c + midcol) = layer(0, c + midcol);
-				}
-				layer(r, n_cols) = layer(r, 0);
-				layer(r + midrow, n_cols) = layer(r + midrow, 0);
+			parallel_for(n_source_points, worker_count, [&](size_t source_index, unsigned int worker_index) {
+				calculate_source(*workers[worker_index], static_cast<uint32_t>(source_index), thickness);
+			});
+
+			arma::mat intensity(n_rows, n_cols, arma::fill::zeros);
+			for (const auto& worker : workers) {
+				intensity += worker->intensity;
 			}
-			layer(n_rows, n_cols) = layer(0, 0);
+			intensity *= (refractive_index / arma::accu(*diffraction->source_shape->values()));
+			write_aerial_image_slice(result, s, intensity, n_rows, n_cols);
 		}
 	}
 }
@@ -211,42 +340,9 @@ SharedResistVolume latent_image(SharedResistVolume image_in_resist,
 	const size_t total_elem = values.n_elem;
 	const double* in_ptr = values.memptr();
 	double* out_ptr = result->values()->memptr();
-
-#ifdef _OPENMP
-	#pragma omp parallel for schedule(static)
-	for (size_t i = 0; i < total_elem; ++i) {
+	parallel_for(total_elem, simulation_thread_count_for(total_elem, total_elem), [&](size_t i, unsigned int) {
 		out_ptr[i] = std::exp(factor * in_ptr[i]);
-	}
-#else
-	unsigned int num_threads = std::thread::hardware_concurrency();
-	if (num_threads == 0) {
-		num_threads = 4;
-	}
-	if (total_elem < 10000 || num_threads <= 1) {
-		for (size_t i = 0; i < total_elem; ++i) {
-			out_ptr[i] = std::exp(factor * in_ptr[i]);
-		}
-	} else {
-		if (num_threads > total_elem) {
-			num_threads = static_cast<unsigned int>(total_elem);
-		}
-		std::vector<std::thread> workers;
-		workers.reserve(num_threads);
-		const size_t chunk_size = total_elem / num_threads;
-		for (unsigned int t = 0; t < num_threads; ++t) {
-			size_t start = t * chunk_size;
-			size_t end = (t == num_threads - 1) ? total_elem : start + chunk_size;
-			workers.emplace_back([in_ptr, out_ptr, factor, start, end]() {
-				for (size_t i = start; i < end; ++i) {
-					out_ptr[i] = std::exp(factor * in_ptr[i]);
-				}
-			});
-		}
-		for (auto& w : workers) {
-			w.join();
-		}
-	}
-#endif
+	});
 
 	return result;
 }
@@ -267,35 +363,32 @@ SharedResistVolume peb_latent_image(SharedResistVolume latent_image,
 	const arma::cube& input = *latent_image->values();
 	arma::cube& output = *result->values();
 
-	for (uint32_t s = 0; s < input.n_slices; s++) {
-		const arma::mat& input_slice = input.slice(s);
-		arma::mat output_slice = arma::mat(input_slice.n_rows, input_slice.n_cols);
+	const size_t row_count = static_cast<size_t>(input.n_slices) * input.n_rows;
+	const size_t row_operations = row_count * input.n_cols * kernelx.n_elem;
+	parallel_for(row_count, simulation_thread_count_for(row_count, row_operations), [&](size_t index, unsigned int) {
+		const uint32_t s = static_cast<uint32_t>(index / input.n_rows);
+		const uint32_t r = static_cast<uint32_t>(index % input.n_rows);
+		const arma::rowvec row = input.slice(s).row(r);
+		output.slice(s).row(r) = conv::conv1d(row, kernelx, conv::CIRCULAR);
+	});
 
-//		LOG(INFO) << "Slice #" << s << " kernelx = " << kernelx.n_elem << " kernely = " << kernely.n_elem;
+	const size_t column_count = static_cast<size_t>(input.n_slices) * input.n_cols;
+	const size_t column_operations = column_count * input.n_rows * kernely.n_elem;
+	parallel_for(column_count, simulation_thread_count_for(column_count, column_operations), [&](size_t index, unsigned int) {
+		const uint32_t s = static_cast<uint32_t>(index / input.n_cols);
+		const uint32_t c = static_cast<uint32_t>(index % input.n_cols);
+		const arma::colvec col = output.slice(s).col(c);
+		output.slice(s).col(c) = conv::conv1d(col, kernely, conv::CIRCULAR);
+	});
 
-		// Because when slice the cube matrix is transpose then y->cols and x->rows
-
-		for (uint32_t r = 0; r < input.n_rows; r++) {
-			const arma::rowvec& row = input_slice.row(r);
-			output_slice.row(r) = conv::conv1d(row, kernelx, conv::CIRCULAR);
-		}
-
-		for (uint32_t c = 0; c < input.n_cols; c++) {
-			const arma::colvec& col = output_slice.col(c);
-			arma::vec tmp = conv::conv1d(col, kernely, conv::CIRCULAR);
-			output_slice.col(c) = tmp;
-		}
-
-		output.slice(s) = output_slice;
-	}
-
-	for (uint32_t r = 0; r < input.n_rows; r++) {
-		for (uint32_t c = 0; c < input.n_cols; c++) {
-			const arma::cube& tube = output.tube(r, c);
-			auto tmp = conv::conv1d(tube, kernelz, conv::SYMMETRIC);
-			output.tube(r, c) = tmp;
-		}
-	}
+	const size_t tube_count = static_cast<size_t>(input.n_rows) * input.n_cols;
+	const size_t tube_operations = tube_count * input.n_slices * kernelz.n_elem;
+	parallel_for(tube_count, simulation_thread_count_for(tube_count, tube_operations), [&](size_t index, unsigned int) {
+		const uint32_t r = static_cast<uint32_t>(index / input.n_cols);
+		const uint32_t c = static_cast<uint32_t>(index % input.n_cols);
+		const arma::cube tube = output.tube(r, c);
+		output.tube(r, c) = conv::conv1d(tube, kernelz, conv::SYMMETRIC);
+	});
 
 	return result;
 }
@@ -314,16 +407,12 @@ SharedResistVolume develop_time_contours(SharedResistVolume peb_latent_image, Sh
 	arma::cube rates = arma::cube(values.n_rows, values.n_cols, values.n_slices);
 
 //	LOG(INFO) << "Calculate development rates";
-	for (uint32_t s = 0; s < rates.n_slices; s++) {
-		double depth = peb_latent_image->z(s);
-//		LOG(INFO) << "s = " << s << " depth = " << depth;
-		for (uint32_t r = 0; r < rates.n_rows; r++) {
-			for (uint32_t c = 0; c < rates.n_cols; c++) {
-				double pac = values(r, c, s);
-				rates(r, c, s) = resist->rate->calculate(pac, depth);
-			}
-		}
-	}
+	const size_t plane_size = static_cast<size_t>(rates.n_rows) * rates.n_cols;
+	parallel_for(rates.n_elem, simulation_thread_count_for(rates.n_elem, rates.n_elem), [&](size_t index, unsigned int) {
+		const size_t s = index / plane_size;
+		const double depth = peb_latent_image->z(static_cast<uint32_t>(s));
+		rates[index] = resist->rate->calculate(values[index], depth);
+	});
 
 #ifndef ENABLE_DEBUG_RATES
 	arma::cube& develop = *result->values();

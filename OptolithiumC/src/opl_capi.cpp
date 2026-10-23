@@ -25,6 +25,14 @@
 
 #include "opl_capi.h"
 
+#include <cstddef>
+
+namespace {
+
+const size_t REFLECTION_CACHE_ENTRY_LIMIT = 8192;
+
+}
+
 namespace oplc {
 
     // ========================================= AbstractResistSimulations ========================================== //
@@ -1186,7 +1194,9 @@ namespace oplc {
         } else {
             double cxy = sqrt(cx*cx + cy*cy);
             std::shared_ptr<arma::cx_vec> reflections = this->_calc_effective_top_reflections(cxy, wavelength);
-            this->_cached_top_reflections[cx_cy] = reflections;
+            if (this->_cached_top_reflections.size() < REFLECTION_CACHE_ENTRY_LIMIT) {
+                this->_cached_top_reflections[cx_cy] = reflections;
+            }
             return reflections;
         }
     }
@@ -1226,7 +1236,9 @@ namespace oplc {
         } else {
             double cxy = sqrt(cx*cx + cy*cy);
             std::shared_ptr<arma::cx_vec> reflections = this->_calc_effective_bottom_reflections(cxy, wavelength);
-            this->_cached_bottom_reflections[cx_cy] = reflections;
+            if (this->_cached_bottom_reflections.size() < REFLECTION_CACHE_ENTRY_LIMIT) {
+                this->_cached_bottom_reflections[cx_cy] = reflections;
+            }
             return reflections;
         }
     }
@@ -1243,6 +1255,10 @@ namespace oplc {
             this->push(layer);
         }
     }
+
+    WaferStack::WaferStack(const WaferStack& other) :
+            _layers(other._layers), _resist(other._resist), _substrate(other._substrate),
+            _environment(other._environment), _cached_wavelength(-1.0) { }
 
     void WaferStack::push(SharedAbstractWaferLayer layer) {
         if (this->_environment) {

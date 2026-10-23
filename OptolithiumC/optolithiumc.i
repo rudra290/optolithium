@@ -23,7 +23,9 @@
  *
  */
 
-%module optolithiumc
+/* Release the GIL around native calls so Qt's GUI thread can continue handling
+ * events while the numerical core runs from a QThread. */
+%module(threads="1") optolithiumc
 %{
     #define SWIG_FILE_WITH_INIT
 

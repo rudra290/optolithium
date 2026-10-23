@@ -872,6 +872,7 @@ namespace oplc {
     public:
         WaferStack(void);
         WaferStack(ArrayOfSharedAbstractWaferLayers layers);
+        WaferStack(const WaferStack& other);
 
         void push(SharedAbstractWaferLayer layer);
 
