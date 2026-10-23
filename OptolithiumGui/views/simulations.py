@@ -34,7 +34,7 @@ from matplotlib.colors import BoundaryNorm
 from qt import QtGui, QtCore, connect, QSlot
 from config import COMMON_LINES_COLOR, RESIST_FILL_COLOR, RESIST_LINES_COLOR, RESIST_CONTOUR_COLOR
 from views.common import QStackWidgetTab, QGraphPlot, QMetrologyTable, \
-    ProlithColormap, show_traceback, NavigationToolbar, CalculationWorker
+    ProlithColormap, show_traceback, NavigationToolbar, SimulationErrorDialog
 from metrics import contour_sign
 
 import helpers
@@ -677,7 +677,7 @@ def SimulationViewsFactory(graph_class):
 
         _graph_class = None
 
-        def __init__(self, parent, stage, options):
+        def __init__(self, parent, stage, options, simulation_manager):
             """
             :param QtGui.QWidget parent: Resist simulation view widget parent
             """
@@ -685,12 +685,35 @@ def SimulationViewsFactory(graph_class):
 
             self.__options = options
             self.__stage = stage
+            self.__simulation_manager = simulation_manager
+            self.__simulation_manager.register_stage(stage)
 
             self.__metrology_label = QtGui.QLabel("Metrology results:", self)
             self.__calculation_status = QtGui.QLabel("", self)
-            self.__calculation_worker = None
             self.__displayed_result = None
             self.__displayed_metrics_kwargs = None
+
+            self.__simulate_button = QtGui.QPushButton("Simulate", self)
+            self.__view_results_button = QtGui.QPushButton("View Results", self)
+            self.__view_results_button.setEnabled(False)
+            self.__error_log_button = QtGui.QPushButton("Error Log", self)
+            self.__error_log_button.setEnabled(False)
+            self.__progress_line = QtGui.QProgressBar(self)
+            self.__progress_line.setTextVisible(False)
+            self.__progress_line.setRange(0, 1)
+            self.__progress_line.setValue(1)
+            self.__progress_line.setFixedHeight(6)
+            self.__progress_line.setStyleSheet(
+                "QProgressBar { border: 0px; background: #e6e6e6; }"
+                "QProgressBar::chunk { background: #c62828; margin: 0px; }")
+            self.__calculation_status.setText("Ready to simulate.")
+            self.__calculation_status.setStyleSheet("color: #c62828;")
+
+            connect(self.__simulate_button.clicked, self.__on_simulate)
+            connect(self.__view_results_button.clicked, self.__on_view_results)
+            connect(self.__error_log_button.clicked, self.__on_show_error_log)
+            connect(self.__simulation_manager.stateChanged, self.__on_simulation_state_changed)
+            connect(self.__simulation_manager.busyChanged, self.__on_simulation_busy_changed)
 
             self._parameters = QMetrologyTable(self, stage.metrics)
 
@@ -709,6 +732,14 @@ def SimulationViewsFactory(graph_class):
             self._draw_mask_chkbox.setChecked(False)
 
             self.__parameters_layout = QtGui.QVBoxLayout()
+            # Keep the run and results controls above the potentially tall
+            # metrology table so they remain visible in the normal window size.
+            self.__parameters_layout.addWidget(self.__simulate_button)
+            self.__parameters_layout.addWidget(self.__progress_line)
+            self.__parameters_layout.addWidget(self.__view_results_button)
+            self.__parameters_layout.addWidget(self.__calculation_status)
+            self.__parameters_layout.addWidget(self.__error_log_button)
+            self.__parameters_layout.addSpacing(10)
             self.__parameters_layout.addWidget(self.__x_axis_label)
             self.__parameters_layout.addWidget(self._x_axis_edit)
             self.__parameters_layout.addSpacing(10)
@@ -717,7 +748,6 @@ def SimulationViewsFactory(graph_class):
             self.__parameters_layout.addSpacing(30)
             self.__parameters_layout.addWidget(self.__metrology_label)
             self.__parameters_layout.addWidget(self._parameters)
-            self.__parameters_layout.addWidget(self.__calculation_status)
             self.__parameters_layout.addWidget(self._draw_mask_chkbox)
             self.__parameters_layout.addStretch()
 
@@ -743,33 +773,71 @@ def SimulationViewsFactory(graph_class):
             self._graph.draw_mask = state
 
         def onSetActive(self):
-            if self.__calculation_worker is not None:
-                return
-            if self.__stage.has_result:
-                self.__show_result(self.__stage.calculate())
-                return
-            self.__calculation_status.setText("Calculating simulation…")
-            self.__calculation_worker = CalculationWorker(self.__stage.calculate, self)
-            connect(self.__calculation_worker.succeeded, self.__on_calculation_succeeded)
-            connect(self.__calculation_worker.failed, self.__on_calculation_failed)
-            connect(self.__calculation_worker.finished, self.__on_calculation_finished)
-            self.__calculation_worker.start()
-
-        @QSlot(object)
-        def __on_calculation_succeeded(self, data):
-            self.__calculation_status.clear()
-            self.__show_result(data)
-
-        @QSlot(str)
-        def __on_calculation_failed(self, message):
-            self.__calculation_status.setText("Calculation failed: %s" % message)
+            self.__refresh_simulation_controls()
+            result = self.__simulation_manager.result(self.__stage)
+            if result is not None:
+                self.__show_result(result)
 
         @QSlot()
-        def __on_calculation_finished(self):
-            worker = self.__calculation_worker
-            self.__calculation_worker = None
-            if worker is not None:
-                worker.deleteLater()
+        def __on_simulate(self):
+            if not self.__simulation_manager.start(self.__stage):
+                self.__calculation_status.setText("Another simulation is already running.")
+
+        @QSlot()
+        def __on_view_results(self):
+            result = self.__simulation_manager.result(self.__stage)
+            if result is not None:
+                self.__show_result(result)
+
+        @QSlot()
+        def __on_show_error_log(self):
+            report = self.__simulation_manager.error_log(self.__stage)
+            if report:
+                SimulationErrorDialog(self, report).exec_()
+
+        @QSlot(object, str, str)
+        def __on_simulation_state_changed(self, stage, state, message):
+            if stage is self.__stage:
+                self.__calculation_status.setText(message)
+                if state == self.__simulation_manager.RUNNING or state == self.__simulation_manager.STARTING:
+                    self.__set_progress_state("#ef8f00", True)
+                    self.__calculation_status.setStyleSheet("color: #a85f00;")
+                elif state == self.__simulation_manager.COMPLETED:
+                    self.__set_progress_state("#27833b", False)
+                    self.__calculation_status.setStyleSheet("color: #27833b;")
+                    if self.isVisible():
+                        result = self.__simulation_manager.result(self.__stage)
+                        if result is not None:
+                            self.__show_result(result)
+                elif state == self.__simulation_manager.FAILED:
+                    self.__set_progress_state("#c62828", False)
+                    self.__calculation_status.setStyleSheet("color: #c62828;")
+                else:
+                    self.__set_progress_state("#c62828", False)
+                    self.__calculation_status.setStyleSheet("color: #c62828;")
+                self.__refresh_simulation_controls()
+
+        @QSlot(bool)
+        def __on_simulation_busy_changed(self, busy):
+            self.__refresh_simulation_controls()
+
+        def __set_progress_state(self, color, running):
+            if running:
+                self.__progress_line.setRange(0, 0)
+            else:
+                self.__progress_line.setRange(0, 1)
+                self.__progress_line.setValue(1)
+            self.__progress_line.setStyleSheet(
+                "QProgressBar { border: 0px; background: #e6e6e6; }"
+                "QProgressBar::chunk { background: %s; margin: 0px; }" % color)
+
+        def __refresh_simulation_controls(self):
+            state = self.__simulation_manager.state(self.__stage)
+            self.__simulate_button.setEnabled(not self.__simulation_manager.busy)
+            self.__view_results_button.setEnabled(self.__simulation_manager.result(self.__stage) is not None)
+            self.__error_log_button.setEnabled(bool(self.__simulation_manager.error_log(self.__stage)))
+            if state == self.__simulation_manager.IDLE and not self.__calculation_status.text():
+                self.__calculation_status.setText("Ready to simulate.")
 
         @show_traceback
         def __show_result(self, data):

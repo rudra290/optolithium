@@ -24,10 +24,13 @@
 
 import sys
 import math
+import os
+import threading
 import traceback
 import logging as module_logging
+from collections import deque
 
-from qt import QtGui, QtCore, connect, disconnect, QSlot, GlobalSignals, backend_name
+from qt import QtGui, QtCore, connect, disconnect, Signal, QSlot, GlobalSignals, backend_name
 
 from metrics import MetricNotImplementedError
 
@@ -604,6 +607,353 @@ class CalculationWorker(QtCore.QThread):
         except Exception as error:
             logging.exception("Simulation calculation failed")
             self.failed.emit(str(error))
+
+
+class _BoundedTextBuffer(object):
+    """Store the beginning and end of a potentially large native output stream."""
+
+    MAX_CHARS = 512 * 1024
+    PREFIX_CHARS = 32 * 1024
+
+    def __init__(self):
+        self.__lines = deque()
+        self.__size = 0
+        self.__prefix = ""
+        self.__truncated = False
+
+    def append(self, text):
+        if not text:
+            return
+        if len(self.__prefix) < self.PREFIX_CHARS:
+            prefix_size = self.PREFIX_CHARS - len(self.__prefix)
+            self.__prefix += text[:prefix_size]
+            text = text[prefix_size:]
+        if not text:
+            return
+        self.__lines.append(text)
+        self.__size += len(text)
+        while self.__size > self.MAX_CHARS - self.PREFIX_CHARS and self.__lines:
+            self.__size -= len(self.__lines.popleft())
+            self.__truncated = True
+
+    @property
+    def text(self):
+        omitted = "\n[Middle output omitted after reaching the 512 KiB log limit.]\n" if self.__truncated else ""
+        return self.__prefix + omitted + "".join(self.__lines)
+
+
+class NativeOutputCapture(object):
+    """Drain stdout and stderr during a native call without a pipe deadlock."""
+
+    def __init__(self):
+        self.__buffer = _BoundedTextBuffer()
+        self.__reader = None
+        self.__read_fd = None
+        self.__saved_stdout = None
+        self.__saved_stderr = None
+        self.__active = False
+
+    @staticmethod
+    def __flush_streams():
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.flush()
+            except (AttributeError, IOError, OSError):
+                pass
+
+    def start(self):
+        self.__flush_streams()
+        read_fd, write_fd = os.pipe()
+        saved_stdout = None
+        saved_stderr = None
+        try:
+            saved_stdout = os.dup(1)
+            saved_stderr = os.dup(2)
+        except Exception:
+            for descriptor in (read_fd, write_fd, saved_stdout, saved_stderr):
+                if descriptor is not None:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        pass
+            raise
+
+        self.__read_fd = read_fd
+        self.__saved_stdout = saved_stdout
+        self.__saved_stderr = saved_stderr
+
+        def drain():
+            try:
+                while True:
+                    chunk = os.read(read_fd, 8192)
+                    if not chunk:
+                        break
+                    self.__buffer.append(chunk.decode("utf-8", errors="replace"))
+            finally:
+                os.close(read_fd)
+
+        self.__reader = threading.Thread(target=drain, name="SimulationLogReader", daemon=True)
+        try:
+            self.__reader.start()
+        except Exception:
+            for descriptor in (read_fd, write_fd, saved_stdout, saved_stderr):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            raise
+        try:
+            os.dup2(write_fd, 1)
+            os.dup2(write_fd, 2)
+        except Exception:
+            os.dup2(saved_stdout, 1)
+            os.dup2(saved_stderr, 2)
+            os.close(write_fd)
+            os.close(saved_stdout)
+            os.close(saved_stderr)
+            self.__reader.join()
+            raise
+        finally:
+            try:
+                os.close(write_fd)
+            except OSError:
+                pass
+        self.__active = True
+
+    def stop(self):
+        if self.__active:
+            self.__flush_streams()
+            try:
+                os.dup2(self.__saved_stdout, 1)
+            finally:
+                try:
+                    os.dup2(self.__saved_stderr, 2)
+                finally:
+                    os.close(self.__saved_stdout)
+                    os.close(self.__saved_stderr)
+                    self.__active = False
+                    self.__reader.join()
+        return self.__buffer.text
+
+
+class _SimulationCalculationWorker(QtCore.QThread):
+    succeeded = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, stage, parent=None):
+        super(_SimulationCalculationWorker, self).__init__(parent)
+        self.__stage = stage
+        self.native_output = ""
+
+    def run(self):
+        capture = NativeOutputCapture()
+        try:
+            capture.start()
+            result = self.__stage.calculate()
+            self.native_output = capture.stop()
+            validate_simulation_result(result)
+            self.succeeded.emit(result)
+        except Exception:
+            self.native_output = capture.stop()
+            self.failed.emit(traceback.format_exc())
+
+
+def validate_simulation_result(result):
+    """Reject missing or structurally empty results before making them viewable."""
+    if result is None:
+        raise ValueError("The simulation returned no result.")
+    if not hasattr(result, "values"):
+        raise ValueError("The simulation result has no values array.")
+    values = result.values
+    shape = getattr(values, "shape", None)
+    if values is None or (shape is not None and
+                          (len(shape) == 0 or any(size <= 0 for size in shape))):
+        raise ValueError("The simulation returned an empty or malformed values array.")
+
+
+class SimulationManager(QtCore.QObject):
+    """Serialize in-process simulation work and publish its lifecycle to views."""
+
+    stateChanged = Signal(object, str, str)
+    busyChanged = Signal(bool)
+
+    IDLE = "IDLE"
+    STARTING = "STARTING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+    def __init__(self, parent=None):
+        super(SimulationManager, self).__init__(parent)
+        self.__worker = None
+        self.__active_stage = None
+        self.__external_job = None
+        self.__states = {}
+        self.__results = {}
+        self.__errors = {}
+        self.__logs = {}
+
+    @property
+    def busy(self):
+        return self.__worker is not None or self.__external_job is not None
+
+    def begin_external_job(self, name):
+        """Reserve the shared simulation slot for a workflow with its own worker."""
+        if self.busy:
+            return False
+        self.__external_job = name
+        self.busyChanged.emit(True)
+        return True
+
+    def end_external_job(self, name):
+        if self.__external_job == name:
+            self.__external_job = None
+            self.busyChanged.emit(False)
+
+    def register_stage(self, stage):
+        if stage not in self.__states:
+            self.__states[stage] = self.IDLE
+            connect(stage.invalidated, lambda stage=stage: self.__on_stage_invalidated(stage))
+
+    def state(self, stage):
+        self.register_stage(stage)
+        if stage in self.__results and stage.has_result:
+            return self.COMPLETED
+        return self.__states.get(stage, self.IDLE)
+
+    def result(self, stage):
+        if stage in self.__results and stage.has_result:
+            return self.__results[stage]
+        return None
+
+    def error_log(self, stage):
+        return self.__errors.get(stage, "")
+
+    def output_log(self, stage):
+        return self.__logs.get(stage, "")
+
+    def start(self, stage):
+        self.register_stage(stage)
+        if self.busy:
+            return False
+
+        self.__active_stage = stage
+        self.__results.pop(stage, None)
+        self.__errors.pop(stage, None)
+        self.__logs.pop(stage, None)
+        self.__set_state(stage, self.STARTING, "Preparing simulation…")
+
+        worker = _SimulationCalculationWorker(stage, self)
+        self.__worker = worker
+        connect(worker.succeeded, self.__on_worker_succeeded)
+        connect(worker.failed, self.__on_worker_failed)
+        connect(worker.finished, self.__on_worker_finished)
+        self.busyChanged.emit(True)
+        try:
+            worker.start()
+        except Exception:
+            self.__worker = None
+            self.__active_stage = None
+            self.__errors[stage] = "Simulation mode: %s\n\nWorker could not start:\n%s" % (
+                stage.name, traceback.format_exc())
+            self.__set_state(stage, self.FAILED, "Simulation failed to start. Open Error Log for details.")
+            self.busyChanged.emit(False)
+            worker.deleteLater()
+            return True
+        self.__set_state(stage, self.RUNNING, "Simulation is running…")
+        return True
+
+    def __set_state(self, stage, state, message=""):
+        self.__states[stage] = state
+        self.stateChanged.emit(stage, state, message)
+
+    @QSlot(object)
+    def __on_worker_succeeded(self, result):
+        stage = self.__active_stage
+        if stage is None:
+            return
+        self.__results[stage] = result
+        self.__logs[stage] = self.__worker.native_output
+        self.__errors.pop(stage, None)
+        self.__set_state(stage, self.COMPLETED, "Simulation completed. Results are ready.")
+
+    @QSlot(str)
+    def __on_worker_failed(self, details):
+        stage = self.__active_stage
+        if stage is None:
+            return
+        try:
+            stage.invalidate()
+        except Exception:
+            logging.exception("Could not clear a failed simulation result")
+        logs = self.__worker.native_output if self.__worker is not None else ""
+        report = ["Simulation mode: %s" % stage.name,
+                  "Failure reason and Python traceback:", details,
+                  "Backend exit code: not applicable (in-process C++ binding)."]
+        if logs:
+            report.extend(["Captured stdout and stderr (bounded to 512 KiB; first and last portions retained):", logs])
+        else:
+            report.append("Captured stdout and stderr: no output was emitted.")
+        self.__errors[stage] = "\n\n".join(report)
+        self.__results.pop(stage, None)
+        self.__set_state(stage, self.FAILED, "Simulation failed. Open Error Log for details.")
+
+    @QSlot()
+    def __on_worker_finished(self):
+        worker = self.__worker
+        self.__worker = None
+        self.__active_stage = None
+        self.busyChanged.emit(False)
+        if worker is not None:
+            worker.deleteLater()
+
+    def __on_stage_invalidated(self, stage):
+        self.__results.pop(stage, None)
+        self.__errors.pop(stage, None)
+        self.__logs.pop(stage, None)
+        if self.__states.get(stage) in (self.COMPLETED, self.FAILED):
+            self.__set_state(stage, self.IDLE, "Inputs changed. Run the simulation again.")
+
+
+class SimulationErrorDialog(QtGui.QDialog):
+    """Detailed, copyable, and savable simulation failure report."""
+
+    def __init__(self, parent, report):
+        super(SimulationErrorDialog, self).__init__(parent)
+        self.setWindowTitle("Simulation Error Log")
+        self.resize(760, 520)
+        self.__log = QtGui.QPlainTextEdit(self)
+        self.__log.setReadOnly(True)
+        self.__log.setPlainText(report)
+
+        copy_button = QtGui.QPushButton("Copy", self)
+        save_button = QtGui.QPushButton("Save…", self)
+        close_button = QtGui.QPushButton("Close", self)
+        connect(copy_button.clicked, self.__copy)
+        connect(save_button.clicked, self.__save)
+        connect(close_button.clicked, self.accept)
+
+        buttons = QtGui.QHBoxLayout()
+        buttons.addStretch()
+        buttons.addWidget(copy_button)
+        buttons.addWidget(save_button)
+        buttons.addWidget(close_button)
+        layout = QtGui.QVBoxLayout(self)
+        layout.addWidget(self.__log)
+        layout.addLayout(buttons)
+
+    def __copy(self):
+        QtGui.QApplication.clipboard().setText(self.__log.toPlainText())
+
+    def __save(self):
+        path, _ = QtGui.QFileDialog.getSaveFileName(
+            self, "Save Simulation Error Log", "simulation-error.log", "Log files (*.log);;All files (*)")
+        if path:
+            try:
+                with open(path, "w", encoding="utf-8") as log_file:
+                    log_file.write(self.__log.toPlainText())
+            except (IOError, OSError) as error:
+                ErrorBox(self, "Could not save the error log:\n%s" % error)
 
 
 class QStackedWidget(QtGui.QStackedWidget):

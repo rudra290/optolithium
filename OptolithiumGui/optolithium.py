@@ -39,7 +39,7 @@ if os.path.isdir(_mpl_dir):
 from matplotlib import __version__ as matplotlib_version
 
 from views.controls import ControlBar, ControlsView
-from views.common import QStackedWidget, QuestionBox, ErrorBox, ExtendedErrorBox, msgBox
+from views.common import QStackedWidget, QuestionBox, ErrorBox, ExtendedErrorBox, msgBox, SimulationManager
 from views.dbview import DatabaseView
 from views.summary import SummaryView
 from views.numerics import NumericsView
@@ -213,6 +213,9 @@ class MainWindow(QtGui.QMainWindow):
         self.options = options.Options.default()
 
         self.core = core.Core(self.options)
+        self.simulation_manager = SimulationManager(self)
+        connect(self.simulation_manager.busyChanged, self.__on_simulation_busy_changed)
+        self.__simulation_widget_states = None
 
         connect(self.options.changed, self.setApplicationTitle)
         self.setApplicationTitle()
@@ -360,10 +363,37 @@ class MainWindow(QtGui.QMainWindow):
             return True
 
     def closeEvent(self, event):
+        if self.simulation_manager.busy:
+            self.statusBar().showMessage(
+                "A simulation is still running. Wait for it to finish before closing the application.")
+            event.ignore()
+            return
         if self.options_modified_handler():
             event.accept()
         else:
             event.ignore()
+
+    @QSlot(bool)
+    def __on_simulation_busy_changed(self, busy):
+        if busy:
+            current = self.tabs_stack.currentWidget() if self.tabs_stack is not None else None
+            self.__simulation_widget_states = []
+            for widget in self.tabs.values():
+                was_enabled = widget.isEnabled()
+                self.__simulation_widget_states.append((widget, was_enabled))
+                if widget is not current:
+                    widget.setEnabled(False)
+            if self.controls_view is not None:
+                for control_name in ("File", "View", "Parameters", "Simulation", "Help"):
+                    self.controls_view.set_enabled(control_name, False)
+        else:
+            if self.__simulation_widget_states is not None:
+                for widget, was_enabled in self.__simulation_widget_states:
+                    widget.setEnabled(was_enabled)
+                self.__simulation_widget_states = None
+            if self.controls_view is not None:
+                for control_name in ("File", "View", "Parameters", "Simulation", "Help"):
+                    self.controls_view.set_enabled(control_name, True)
 
     @QSlot()
     def new_options(self):
@@ -718,29 +748,36 @@ class MainWindow(QtGui.QMainWindow):
         self.tabs["Parameters.Summary"] = SummaryView(self, self.options)
 
         logging.info("Create diffraction pattern simulation view")
-        self.tabs["Simulation.DiffractionPattern"] = DiffractionPatternView(self, self.core)
+        self.tabs["Simulation.DiffractionPattern"] = DiffractionPatternView(
+            self, self.core, self.simulation_manager)
 
         logging.info("Create aerial image simulation view")
-        self.tabs["Simulation.AerialImage"] = AerialImageView(self, self.core.aerial_image, self.options)
+        self.tabs["Simulation.AerialImage"] = AerialImageView(
+            self, self.core.aerial_image, self.options, self.simulation_manager)
 
         logging.info("Create image in resist simulation view")
-        self.tabs["Simulation.ImageInResist"] = ImageInResistView(self, self.core.image_in_resist, self.options)
+        self.tabs["Simulation.ImageInResist"] = ImageInResistView(
+            self, self.core.image_in_resist, self.options, self.simulation_manager)
 
         logging.info("Create exposed latent image simulation view")
-        self.tabs["Simulation.ExposedLatentImage"] = LatentImageView(self, self.core.latent_image, self.options)
+        self.tabs["Simulation.ExposedLatentImage"] = LatentImageView(
+            self, self.core.latent_image, self.options, self.simulation_manager)
 
         logging.info("Create peb latent image simulation view")
-        self.tabs["Simulation.PEBLatentImage"] = PebLatentImageView(self, self.core.peb_latent_image, self.options)
+        self.tabs["Simulation.PEBLatentImage"] = PebLatentImageView(
+            self, self.core.peb_latent_image, self.options, self.simulation_manager)
 
         logging.info("Create develop time contours simulation view")
         self.tabs["Simulation.DevelopTimeContours"] = \
-            DevelopContoursView(self, self.core.develop_contours, self.options)
+            DevelopContoursView(self, self.core.develop_contours, self.options, self.simulation_manager)
 
         logging.info("Create resist profile simulation view")
-        self.tabs["Simulation.ResistProfile"] = ResistProfileView(self, self.core.resist_profile, self.options)
+        self.tabs["Simulation.ResistProfile"] = ResistProfileView(
+            self, self.core.resist_profile, self.options, self.simulation_manager)
 
         logging.info("Create simulation sets view")
-        self.tabs["Simulation.SimulationSets"] = SimulationSets(self, self.core)
+        self.tabs["Simulation.SimulationSets"] = SimulationSets(
+            self, self.core, self.simulation_manager)
 
         logging.info("Configure stack widget")
         window = QtGui.QWidget()

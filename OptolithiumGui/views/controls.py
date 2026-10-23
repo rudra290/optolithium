@@ -65,6 +65,7 @@ class ControlBar(QtCore.QObject):
         self.__text = text
 
         self.__actions = dict()
+        self.__enabled_actions = dict()
         """:type: dict from str to QtGui.QAction"""
 
         self.__parent = parent
@@ -127,6 +128,7 @@ class ControlBar(QtCore.QObject):
 
         logging.debug("Enable action")
         self.__actions[data.name].setEnabled(data.enabled)
+        self.__enabled_actions[data.name] = data.enabled
 
         logging.debug("Action %s created successfully" % data.name)
         return self.__actions[data.name]
@@ -141,6 +143,10 @@ class ControlBar(QtCore.QObject):
     def __getitem__(self, item):
         """:type item: str"""
         return self.__actions[item]
+
+    def set_enabled(self, enabled):
+        for name, action in self.__actions.items():
+            action.setEnabled(bool(enabled) and self.__enabled_actions[name])
 
     @property
     def parent(self):
@@ -212,3 +218,6 @@ class ControlsView(QtCore.QObject):
         :rtype: ControlBar
         """
         return self.__controls[item]
+
+    def set_enabled(self, control_name, enabled):
+        self.__controls[control_name].set_enabled(enabled)

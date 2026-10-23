@@ -23,6 +23,7 @@
 # license, please contact the author at gladkikhalexei@gmail.com
 
 import logging as module_logging
+import traceback
 
 from copy import deepcopy
 from auxmath import cartesian
@@ -30,7 +31,8 @@ from numpy import arange, array, ndarray, savetxt, nan
 from io import StringIO
 from config import COMMON_LINES_COLOR
 from qt import QtGui, QtCore, connect, disconnect, Signal, QSlot
-from views.common import QObjectNumeric, QStackWidgetTab, QGraphPlot, calculate_table_width, msgBox, NavigationToolbar
+from views.common import QObjectNumeric, QStackWidgetTab, QGraphPlot, calculate_table_width, msgBox, NavigationToolbar, \
+    SimulationErrorDialog, NativeOutputCapture, validate_simulation_result
 from options.structures import Options, AbstractOptionsBase, Variable, StandardLayer, Resist, Numeric
 from database.orm import StandardObject, ConcretePluginCommon, DeveloperExprArgValue, \
     DeveloperInterface, DeveloperExpr, DeveloperSheet, PebParameters, ExposureParameters
@@ -659,9 +661,11 @@ class SimulationSetsPayload(QtCore.QObject):
         self.variable_changed = QtCore.QWaitCondition()
 
         self.calculation_results = None
+        self.errors = []
 
         self.__aborted = False
         self.__done = False
+        self.__backup_variables = {}
 
     @property
     def aborted(self):
@@ -709,11 +713,27 @@ class SimulationSetsPayload(QtCore.QObject):
 
     @QSlot(str)
     def task(self, task_name):
+        try:
+            self.__run_task(task_name)
+        except Exception:
+            details = traceback.format_exc()
+            self.errors = ["Simulation set failed before completing its calculation points:\n%s" % details]
+            self.__done = True
+            logging.exception("Simulation set worker failed")
+            try:
+                self.__restore(self.__backup_variables)
+            except Exception:
+                logging.exception("Could not restore simulation set input values")
+            self.taskDone.emit()
+            self.__move_to_main_thread()
+
+    def __run_task(self, task_name):
 
         self.name = task_name
 
         # logging.info("Preparing calculation in '%s'" % thread_name())
         backup_variables = {}
+        self.__backup_variables = backup_variables
 
         arrays = []
         for variable in self.variables:
@@ -728,50 +748,67 @@ class SimulationSetsPayload(QtCore.QObject):
         self.taskStarted.emit(len(calculation_points))
 
         self.calculation_results = list()
+        self.errors = []
 
         # logging.info("Run calculation of the simulation set in '%s'" % thread_name())
         for calculation_point in calculation_points:
 
             # logging.debug("Mutex lock")
             self.mutex.lock()
-
-            for variable, value in zip(self.variables, calculation_point):
-                # logging.debug("Change variable from thread %s to %s" % (thread_name(), value))
-                variable.value = value
-
-            # Workaround for thread not to hangs up, wait no more than one second
-            for k in range(100):
-                # while self.stage.has_result:
-                # logging.info("Waiting for all variables changed and stage invalidated in '%s'" % thread_name())
-                # if self.variable_changed.wait(self.mutex, 10):
-                #     logging.info("Variables changed done")
-                if self.variable_changed.wait(self.mutex, 10) and not self.stage.has_result:
-                    break
-            else:
-                logging.warning("Stop waiting of all variables changed and stage invalidated in '%s'" % thread_name())
-
-            if self.__aborted:
-                logging.info("Task abort reported by '%s'" % thread_name())
-                self.mutex.unlock()
-                self.__restore(backup_variables)
-                self.__move_to_main_thread()
-                break
-
-            # logging.info("Run stage calculation '%s'" % thread_name())
             try:
-                self.calculation_results.append(self.stage.calculate())
-            except Exception:
-                self.calculation_results.append(None)
-                logging.error("Error during calculation")
-            # else:
-            #     logging.info("Stage calculation done '%s'" % thread_name())
-            # self.metrics[] = {metric: SimulationSetsPayload.calc(metric, result) for metric in self.stage.metrics}
-            # logging.info("'%s': Result at %s = %s" % (thread_name(), calculation_point, metrics))
+                for variable, value in zip(self.variables, calculation_point):
+                    # logging.debug("Change variable from thread %s to %s" % (thread_name(), value))
+                    variable.value = value
 
-            self.calculationDone.emit()
+                # Workaround for thread not to hangs up, wait no more than one second
+                for k in range(100):
+                    # while self.stage.has_result:
+                    # logging.info("Waiting for all variables changed and stage invalidated in '%s'" % thread_name())
+                    # if self.variable_changed.wait(self.mutex, 10):
+                    #     logging.info("Variables changed done")
+                    if self.variable_changed.wait(self.mutex, 10) and not self.stage.has_result:
+                        break
+                else:
+                    logging.warning("Stop waiting of all variables changed and stage invalidated in '%s'" % thread_name())
 
-            # logging.debug("Mutex unlock")
-            self.mutex.unlock()
+                if self.__aborted:
+                    logging.info("Task abort reported by '%s'" % thread_name())
+                    self.__restore(backup_variables)
+                    self.__move_to_main_thread()
+                    break
+
+                # logging.info("Run stage calculation '%s'" % thread_name())
+                native_output = ""
+                try:
+                    capture = NativeOutputCapture()
+                    capture.start()
+                    try:
+                        result = self.stage.calculate()
+                    finally:
+                        native_output = capture.stop()
+                    validate_simulation_result(result)
+                    self.calculation_results.append(result)
+                except Exception:
+                    self.calculation_results.append(None)
+                    details = traceback.format_exc()
+                    if native_output:
+                        if len(native_output) > 16 * 1024:
+                            native_output = (native_output[:2048] +
+                                             "\n[Middle output omitted.]\n" + native_output[-14 * 1024:])
+                        details += "\nCaptured stdout and stderr:\n%s" % native_output
+                    point_values = ", ".join(
+                        "%s=%s" % (variable.object.name, value)
+                        for variable, value in zip(self.variables, calculation_point))
+                    if len(self.errors) < 50:
+                        self.errors.append("Calculation point %s (%s):\n%s" % (
+                            len(self.calculation_results), point_values, details))
+                    logging.exception("Error during simulation set calculation")
+                # self.metrics[] = {metric: SimulationSetsPayload.calc(metric, result) for metric in self.stage.metrics}
+                self.calculationDone.emit()
+            finally:
+                self.mutex.unlock()
+            if self.__aborted:
+                break
         else:
             self.__done = True
             self.taskDone.emit()
@@ -809,10 +846,11 @@ class SimulationSetsControl(QtGui.QWidget):
     launched = Signal(str)
     finished = Signal(SimulationSetsPayload)
 
-    def __init__(self, parent, core):
+    def __init__(self, parent, core, simulation_manager):
         super(SimulationSetsControl, self).__init__(parent)
 
         self.__core = core
+        self.__simulation_manager = simulation_manager
 
         self.__layout = QtGui.QVBoxLayout(self)
 
@@ -840,12 +878,29 @@ class SimulationSetsControl(QtGui.QWidget):
 
         self.__label_progress_info = QtGui.QLabel("Simulation set progress:")
         self.__progress_bar = QtGui.QProgressBar()
+        self.__status_line = QtGui.QProgressBar(self)
+        self.__status_line.setTextVisible(False)
+        self.__status_line.setRange(0, 1)
+        self.__status_line.setValue(1)
+        self.__status_line.setFixedHeight(6)
+        self.__status_line.setStyleSheet(
+            "QProgressBar { border: 0px; background: #e6e6e6; }"
+            "QProgressBar::chunk { background: #c62828; margin: 0px; }")
+        self.__status_text = QtGui.QLabel("Not started.", self)
+        self.__status_text.setStyleSheet("color: #c62828;")
+        self.__error_report = ""
+        self.__error_log_button = QtGui.QPushButton("Error Log", self)
+        self.__error_log_button.setEnabled(False)
+        connect(self.__error_log_button.clicked, self.__onShowErrorLog)
 
         self.__layout.addWidget(self.__label_info)
         self.__layout.addSpacing(20)
         self.__layout.addWidget(self.__label_final_value)
         self.__layout.addWidget(self.__edit_final_value)
         self.__layout.addLayout(self.__layout_control)
+        self.__layout.addWidget(self.__status_line)
+        self.__layout.addWidget(self.__status_text)
+        self.__layout.addWidget(self.__error_log_button)
         self.__layout.addSpacing(20)
         self.__layout.addWidget(self.__label_progress_info)
         self.__layout.addWidget(self.__progress_bar)
@@ -855,6 +910,7 @@ class SimulationSetsControl(QtGui.QWidget):
         self.wait_box = msgBox(msgBox.NoIcon, "Simulations", "Please, wait...", msgBox.Abort, self)
 
         self.__payload = SimulationSetsPayload()
+        self.__worker = None
         connect(self.launched, self.__payload.task)
         connect(self.__payload.taskStarted, self.__onTaskStarted)
         connect(self.__payload.taskDone, self.__onTaskDone)
@@ -863,11 +919,42 @@ class SimulationSetsControl(QtGui.QWidget):
     # noinspection PyPep8Naming
     @QSlot()
     def __onLaunchButtonClicked(self):
+        if self.__worker is not None:
+            return
+        if not self.__simulation_manager.begin_external_job("Simulation Set"):
+            self.__status_text.setText("Another simulation is already running.")
+            return
         connect(self.__payload.stage.invalidated, self.__onStageInvalidated)
+        self.__error_report = ""
+        self.__error_log_button.setEnabled(False)
+        self.__button_launch.setEnabled(False)
+        self.__status_line.setRange(0, 0)
+        self.__status_line.setStyleSheet(
+            "QProgressBar { border: 0px; background: #e6e6e6; }"
+            "QProgressBar::chunk { background: #ef8f00; margin: 0px; }")
+        self.__status_text.setText("Simulation set is running…")
+        self.__status_text.setStyleSheet("color: #a85f00;")
 
         worker = QWorker(self.__payload, objectName="WorkerThread")
+        self.__worker = worker
+        connect(worker.finished, self.__onWorkerFinished)
 
-        worker.start()
+        try:
+            worker.start()
+        except Exception:
+            self.__worker = None
+            self.__simulation_manager.end_external_job("Simulation Set")
+            self.__status_line.setRange(0, 1)
+            self.__status_line.setValue(1)
+            self.__status_text.setText("Simulation set failed to start.")
+            self.__status_text.setStyleSheet("color: #c62828;")
+            self.__error_report = "Simulation mode: Simulation Set\n\nWorker could not start:\n%s" % (
+                traceback.format_exc())
+            self.__error_log_button.setEnabled(True)
+            SimulationErrorDialog(self, self.__error_report).exec_()
+            worker.deleteLater()
+            self.__button_launch.setEnabled(self.__payload.is_config_ok)
+            return
 
         self.launched.emit(self.__edit_set_name.text())
 
@@ -876,7 +963,22 @@ class SimulationSetsControl(QtGui.QWidget):
         if not self.__payload.done:
             worker.quit()
 
-        worker.wait()
+    @QSlot()
+    def __onWorkerFinished(self):
+        worker = self.__worker
+        self.__worker = None
+        if worker is not None:
+            worker.deleteLater()
+        self.__simulation_manager.end_external_job("Simulation Set")
+        self.__button_launch.setEnabled(self.__payload.is_config_ok)
+        if not self.__payload.done:
+            self.__status_line.setRange(0, 1)
+            self.__status_line.setValue(1)
+            self.__status_line.setStyleSheet(
+                "QProgressBar { border: 0px; background: #e6e6e6; }"
+                "QProgressBar::chunk { background: #c62828; margin: 0px; }")
+            self.__status_text.setText("Simulation set cancelled.")
+            self.__status_text.setStyleSheet("color: #c62828;")
 
     # noinspection PyPep8Naming
     @QSlot(int)
@@ -891,7 +993,37 @@ class SimulationSetsControl(QtGui.QWidget):
     def __onTaskDone(self):
         # logging.info("Simulation set done '%s'" % thread_name())
         self.wait_box.close()
+        if self.__payload.errors:
+            self.__status_line.setRange(0, 1)
+            self.__status_line.setValue(1)
+            self.__status_line.setStyleSheet(
+                "QProgressBar { border: 0px; background: #e6e6e6; }"
+                "QProgressBar::chunk { background: #c62828; margin: 0px; }")
+            self.__status_text.setText("Simulation set failed. See Error Log.")
+            self.__status_text.setStyleSheet("color: #c62828;")
+            report = ["Simulation mode: Simulation Set %s" % self.__edit_set_name.text(),
+                      "Failure reason and Python traceback:",
+                      "\n\n".join(self.__payload.errors)]
+            if len(self.__payload.errors) == 50:
+                report.append("Additional failures were omitted from this report.")
+            report.append("Backend exit code: not applicable (in-process C++ binding).")
+            self.__error_report = "\n\n".join(report)
+            self.__error_log_button.setEnabled(True)
+            SimulationErrorDialog(self, self.__error_report).exec_()
+            return
+        self.__status_line.setRange(0, 1)
+        self.__status_line.setValue(1)
+        self.__status_line.setStyleSheet(
+            "QProgressBar { border: 0px; background: #e6e6e6; }"
+            "QProgressBar::chunk { background: #27833b; margin: 0px; }")
+        self.__status_text.setText("Simulation set completed. Results are ready.")
+        self.__status_text.setStyleSheet("color: #27833b;")
         self.finished.emit(self.__payload)
+
+    @QSlot()
+    def __onShowErrorLog(self):
+        if self.__error_report:
+            SimulationErrorDialog(self, self.__error_report).exec_()
 
     # noinspection PyPep8Naming
     @QSlot()
@@ -918,28 +1050,28 @@ class SimulationSetsControl(QtGui.QWidget):
         else:
             self.__edit_final_value.setText(str())
         self.__payload.stage = stage
-        self.__button_launch.setEnabled(self.__payload.is_config_ok)
+        self.__button_launch.setEnabled(self.__payload.is_config_ok and self.__worker is None)
 
     def set_input_variables(self, data):
         self.__payload.variables = data
-        self.__button_launch.setEnabled(self.__payload.is_config_ok)
+        self.__button_launch.setEnabled(self.__payload.is_config_ok and self.__worker is None)
 
     def set_input_values(self, data):
         self.__payload.values = data
-        self.__button_launch.setEnabled(self.__payload.is_config_ok)
+        self.__button_launch.setEnabled(self.__payload.is_config_ok and self.__worker is None)
 
 
 class OutputVariableBox(AbstractGroupBox):
 
     finished = Signal(SimulationSetsPayload)
 
-    def __init__(self, parent, core):
+    def __init__(self, parent, core, simulation_manager):
         super(OutputVariableBox, self).__init__("Output variable", parent)
 
         self.__output_variable_tree = OutputVariableTree(self, core)
         connect(self.__output_variable_tree.itemSelectionChanged, self.onTreeItemSelectionChanged)
 
-        self.__control_widget = SimulationSetsControl(self, core)
+        self.__control_widget = SimulationSetsControl(self, core, simulation_manager)
 
         self.__layout_accres = QtGui.QHBoxLayout()
         self.__button_accept = QtGui.QPushButton("Accept", self)
@@ -1001,7 +1133,7 @@ class ConfigurationTab(QStackWidgetTab):
 
     finished = Signal(SimulationSetsPayload)
 
-    def __init__(self, parent, core):
+    def __init__(self, parent, core, simulation_manager):
         """
         :param QtGui.QWidget parent: Parent widget
         """
@@ -1010,7 +1142,7 @@ class ConfigurationTab(QStackWidgetTab):
         self.__core = core
 
         self.__input_variables_box = InputVariablesBox(self, self.__core.options)
-        self.__output_variables_box = OutputVariableBox(self, self.__core)
+        self.__output_variables_box = OutputVariableBox(self, self.__core, simulation_manager)
 
         connect(self.__input_variables_box.variablesChanged, self.__output_variables_box.set_input_variables)
         connect(self.__input_variables_box.valuesChanged, self.__output_variables_box.set_input_values)
@@ -1191,7 +1323,7 @@ class SimulationResultsTab(QStackWidgetTab):
 
 class SimulationSets(QStackWidgetTab):
 
-    def __init__(self, parent, core):
+    def __init__(self, parent, core, simulation_manager):
         """
         :param QtGui.QWidget parent: Widget parent
         """
@@ -1200,7 +1332,7 @@ class SimulationSets(QStackWidgetTab):
 
         self.__core = core
 
-        self.__configuration_tab = ConfigurationTab(self.__tab_widget, core)
+        self.__configuration_tab = ConfigurationTab(self.__tab_widget, core, simulation_manager)
         self.__result_tabs = dict()
 
         self.__tab_widget.addTab(self.__configuration_tab, "Configuration")
@@ -1214,11 +1346,14 @@ class SimulationSets(QStackWidgetTab):
     @QSlot(SimulationSetsPayload)
     def __onFinished(self, results):
         if results.name in self.__result_tabs:
-            self.__result_tabs[results.name].setObject(results)
+            result_tab = self.__result_tabs[results.name]
         else:
-            self.__result_tabs[results.name] = SimulationResultsTab(self, self.__core.options)
-            self.__tab_widget.addTab(self.__result_tabs[results.name], results.name)
-            self.__result_tabs[results.name].setObject(results)
+            result_tab = SimulationResultsTab(self, self.__core.options)
+            self.__result_tabs[results.name] = result_tab
+            self.__tab_widget.addTab(result_tab, results.name)
+        result_tab.setObject(results)
+        # Bring the newly completed output forward so it is visible immediately.
+        self.__tab_widget.setCurrentWidget(result_tab)
 
     def onSetActive(self):
         self.__configuration_tab.onSetActive()
