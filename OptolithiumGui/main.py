@@ -23,6 +23,15 @@
 # license, please contact the author at gladkikhalexei@gmail.com
 
 import sys
+import os
+
+# During development the freshly built C++ extension lives beside the CMake
+# build tree, while an older installed copy may remain in this directory.
+_native_build_dir = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), "..", "OptolithiumC", "build"))
+if os.path.isfile(os.path.join(_native_build_dir, "_optolithiumc.so")):
+    sys.path.insert(0, _native_build_dir)
+
 import config
 from qt import QtGui, QtCore
 from optolithium import MainWindow
