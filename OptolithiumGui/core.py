@@ -316,18 +316,8 @@ class DiffractionStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated diffraction pattern data:\n"
-            "Diffraction terms numbers belong X-Axis:\n%s\n"
-            "Diffraction terms numbers belong Y-Axis:\n%s\n"
-            "Diffraction direction cosines belong X-Axis:\n%s\n"
-            "Diffraction direction cosines belong Y-Axis:\n%s\n"
-            "Diffraction terms direction cosines in polar view:\n%s\n"
-            "Diffraction terms values:\n%s\n" % (
-                diffraction.kx, diffraction.ky,
-                diffraction.cx, diffraction.cy,
-                diffraction.cxy, diffraction.values
-            )
-        )
+            "Calculated diffraction pattern with value shape [%s].",
+            diffraction.values.shape)
 
         return diffraction
 
@@ -360,16 +350,8 @@ class AerialImageStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated aerial image data [%s]:\n"
-            "Aerial image X-Axis data:\n%s\n"
-            "Aerial image Y-Axis data:\n%s\n"
-            "Aerial image values:\n%s\n" % (
-                aerial_image.values.shape,
-                aerial_image.x,
-                aerial_image.y,
-                aerial_image.values
-            )
-        )
+            "Calculated aerial image with value shape [%s].",
+            aerial_image.values.shape)
 
         return aerial_image
 
@@ -449,18 +431,8 @@ class ImageInResistStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated image in resist data [%s]:\n"
-            "Image in resist X-Axis data:\n%s\n"
-            "Image in resist Y-Axis data:\n%s\n"
-            "Image in resist Z-Axis data:\n%s\n"
-            "Image in resist values:\n%s\n" % (
-                image_in_resist.values.shape,
-                image_in_resist.x,
-                image_in_resist.y,
-                image_in_resist.z,
-                image_in_resist.values
-            )
-        )
+            "Calculated image in resist with value shape [%s].",
+            image_in_resist.values.shape)
         return image_in_resist
 
     @property
@@ -497,18 +469,8 @@ class LatentImageStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated image in resist data [%s]:\n"
-            "Exposed Latent Image in resist X-Axis data:\n%s\n"
-            "Exposed Latent Image in resist Y-Axis data:\n%s\n"
-            "Exposed Latent Image in resist Z-Axis data:\n%s\n"
-            "Exposed Latent Image in resist values:\n%s\n" % (
-                latent_image.values.shape,
-                latent_image.x,
-                latent_image.y,
-                latent_image.z,
-                latent_image.values
-            )
-        )
+            "Calculated exposed latent image with value shape [%s].",
+            latent_image.values.shape)
         return latent_image
 
     @property
@@ -544,18 +506,8 @@ class PebLatentImageStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated image in resist data [%s]:\n"
-            "PEB Latent Image in resist X-Axis data:\n%s\n"
-            "PEB Latent Image in resist Y-Axis data:\n%s\n"
-            "PEB Latent Image in resist Z-Axis data:\n%s\n"
-            "PEB Latent Image in resist values:\n%s\n" % (
-                peb_latent_image.values.shape,
-                peb_latent_image.x,
-                peb_latent_image.y,
-                peb_latent_image.z,
-                peb_latent_image.values
-            )
-        )
+            "Calculated PEB latent image with value shape [%s].",
+            peb_latent_image.values.shape)
         return peb_latent_image
 
     @property
@@ -595,18 +547,8 @@ class DevelopContoursStage(AbstractStage):
 
         logging.log(
             LOG_VERBOSE_0,
-            "Calculated develop time contours data [%s]:\n"
-            "Develop time contours X-Axis data:\n%s\n"
-            "Develop time contours Y-Axis data:\n%s\n"
-            "Develop time contours Z-Axis data:\n%s\n"
-            "Develop time contours values:\n%s\n" % (
-                develop_contours.values.shape,
-                develop_contours.x,
-                develop_contours.y,
-                develop_contours.z,
-                develop_contours.values
-            )
-        )
+            "Calculated develop time contours with value shape [%s].",
+            develop_contours.values.shape)
         return develop_contours
 
     @property
