@@ -1703,6 +1703,34 @@ class Mask(Generic, StandardObject):
 
     @property
     def dimensions(self):
+        if self.boundary is not None and len(self.boundary.points) >= 2:
+            lb = self.boundary.points[0]
+            rt = self.boundary.points[1]
+            if lb.y == rt.y or lb.x == rt.x:
+                return 1
+            if self.regions:
+                all_span_y = True
+                for region in self.regions:
+                    if len(region.points) < 2:
+                        all_span_y = False
+                        break
+                    y_coords = {round(p.y, 4) for p in region.points}
+                    if not y_coords.issubset({round(lb.y, 4), round(rt.y, 4)}):
+                        all_span_y = False
+                        break
+                if all_span_y:
+                    return 1
+                all_span_x = True
+                for region in self.regions:
+                    if len(region.points) < 2:
+                        all_span_x = False
+                        break
+                    x_coords = {round(p.x, 4) for p in region.points}
+                    if not x_coords.issubset({round(lb.x, 4), round(rt.x, 4)}):
+                        all_span_x = False
+                        break
+                if all_span_x:
+                    return 1
         return Mask.DB_MASK_DIMENSIONS_COUNT
 
     # Compatibility with ConcretePluginMask
