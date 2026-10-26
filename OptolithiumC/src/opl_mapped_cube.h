@@ -166,7 +166,7 @@ inline std::shared_ptr<arma::cube> make_cube(arma::uword rows, arma::uword cols,
 	}
 	const size_t bytes = plane * static_cast<size_t>(slices) * sizeof(double);
 #if !defined(_WIN32)
-	if (slices > 1 && bytes >= MAPPED_CUBE_THRESHOLD_BYTES) {
+	if (bytes >= MAPPED_CUBE_THRESHOLD_BYTES) {
 		std::shared_ptr<MappedFile> backing = std::make_shared<MappedFile>(bytes);
 		arma::cube* cube = new arma::cube(static_cast<double*>(backing->data()),
 			rows, cols, slices, false, true);
