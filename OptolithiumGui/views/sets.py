@@ -606,6 +606,21 @@ class OutputVariableTree(QtGui.QTreeWidget):
         self.__current_stage = None
 
         self.__add_stages()
+        self.refresh_availability()
+
+    def refresh_availability(self):
+        is_3d = getattr(self.__core.options, "is_3d", False)
+        for k in range(self.__root.childCount()):
+            node = self.__root.child(k)
+            stage_name = node.text(OutputVariableTree.NAME_COLUMN)
+            if stage_name == "Resist Profile" and is_3d:
+                node.setDisabled(True)
+                node.setToolTip(0, "Resist Profile is not supported for 3D masks.")
+                if self.__current_stage and self.__current_stage.name == "Resist Profile":
+                    self.stage = None
+            elif stage_name == "Resist Profile":
+                node.setDisabled(False)
+                node.setToolTip(0, "")
 
     def __add_stages(self):
         for stage in self.__core:
@@ -627,6 +642,9 @@ class OutputVariableTree(QtGui.QTreeWidget):
     @stage.setter
     def stage(self, stage_name):
         if stage_name is not None:
+            is_3d = getattr(self.__core.options, "is_3d", False)
+            if stage_name == "Resist Profile" and is_3d:
+                return
             node = self.__item_by_name(stage_name)
             node.setIcon(OutputVariableTree.NAME_COLUMN, Resources("icons/Ok"))
             self.__current_stage = self.__stages[stage_name]
@@ -1068,8 +1086,10 @@ class OutputVariableBox(AbstractGroupBox):
     def __init__(self, parent, core, simulation_manager):
         super(OutputVariableBox, self).__init__("Output variable", parent)
 
+        self.__core = core
         self.__output_variable_tree = OutputVariableTree(self, core)
         connect(self.__output_variable_tree.itemSelectionChanged, self.onTreeItemSelectionChanged)
+        connect(self.__core.options.mask.changed, self.refresh_availability)
 
         self.__control_widget = SimulationSetsControl(self, core, simulation_manager)
 
@@ -1093,6 +1113,10 @@ class OutputVariableBox(AbstractGroupBox):
 
         connect(self.__control_widget.finished, self.onFinished)
 
+    def refresh_availability(self):
+        self.__output_variable_tree.refresh_availability()
+        self.onTreeItemSelectionChanged()
+
     # noinspection PyPep8Naming
     @QSlot(SimulationSetsPayload)
     def onFinished(self, results):
@@ -1102,7 +1126,9 @@ class OutputVariableBox(AbstractGroupBox):
     @QSlot()
     def onTreeItemSelectionChanged(self):
         items = self.__output_variable_tree.selectedItems()
-        self.__button_accept.setEnabled(self.__output_variable_tree.stage is None and bool(items))
+        is_3d = getattr(self.__core.options, "is_3d", False)
+        is_disabled = bool(items and items[0].text(OutputVariableTree.NAME_COLUMN) == "Resist Profile" and is_3d)
+        self.__button_accept.setEnabled(self.__output_variable_tree.stage is None and bool(items) and not is_disabled)
         self.__button_reset.setEnabled(self.__output_variable_tree.stage is not None)
 
     # noinspection PyPep8Naming
@@ -1161,6 +1187,10 @@ class ConfigurationTab(QStackWidgetTab):
 
     def onSetActive(self):
         self.__input_variables_box.setObject(self.__core.options)
+        self.__output_variables_box.refresh_availability()
+
+    def reset(self):
+        self.__output_variables_box.refresh_availability()
 
 
 class SimulationSetsGraph(QGraphPlot):
@@ -1357,3 +1387,6 @@ class SimulationSets(QStackWidgetTab):
 
     def onSetActive(self):
         self.__configuration_tab.onSetActive()
+
+    def reset(self):
+        self.__configuration_tab.reset()
