@@ -51,8 +51,8 @@ def estimate_aerial_worker_memory_bytes(n_rows, n_cols, work_items=None,
 
 def estimate_resist_grid(pitch_x, pitch_y, thickness, grid_xy, grid_z):
     """Return conservative X, Y, and Z voxel counts for a resist volume."""
-    nx = max(1, int(pitch_x / grid_xy) + 4)
-    ny = max(1, int(pitch_y / grid_xy) + 4)
+    nx = 1 if pitch_x == 0.0 else max(1, int(pitch_x / grid_xy) + 4)
+    ny = 1 if pitch_y == 0.0 else max(1, int(pitch_y / grid_xy) + 4)
     nz = max(1, int(thickness / grid_z) + 3)
     return nx, ny, nz
 
