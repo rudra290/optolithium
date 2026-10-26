@@ -1026,6 +1026,19 @@ class Mask(AbstractOptionsBase):
         template = self.report_header()
         return template % "\n".join(body)
 
+    @property
+    def is_1d(self):
+        if self.container is None:
+            return True
+        try:
+            return self.convert2core().is_1d()
+        except Exception:
+            return getattr(self.container, "dimensions", 2) == 1
+
+    @property
+    def is_3d(self):
+        return not self.is_1d
+
     @staticmethod
     def default_container():
         region_transmit = 1.0
@@ -1808,6 +1821,14 @@ class Options(AbstractOptionsBase):
         return self.__groups
 
     @property
+    def is_1d(self):
+        return self.mask.is_1d
+
+    @property
+    def is_3d(self):
+        return self.mask.is_3d
+
+    @property
     def path(self):
         return os.path.join(self._folder, self._filename)
 
@@ -1948,10 +1969,10 @@ class Options(AbstractOptionsBase):
                     group.parse(group_data)
                 except PluginNotFoundError as error:
                     group.assign(type(group).default())
-                    errors.append(OptionsParseError(error.message))
+                    errors.append(OptionsParseError(str(error)))
                 except orm.UnknownObjectTypeError as error:
                     group.assign(type(group).default())
-                    errors.append(OptionsParseError(error.message))
+                    errors.append(OptionsParseError(str(error)))
             except KeyError:
                 group.assign(type(group).default())
                 errors.append(OptionsParseError("%s data not found in file" % group.identifier))
@@ -1977,26 +1998,27 @@ class Options(AbstractOptionsBase):
         errors = []
         kwargs = dict()
 
-        for group_class in [Numerics, WaferProcess, Mask, ImagingTool, ExposureFocus, PostExposureBake, Development]:
+        for group_class in [Numerics, WaferProcess, Mask, ImagingTool, ExposureFocus, PostExposureBake, Development, Metrology]:
             try:
-                logging.debug("Load options group %s" % group_class.name)
-                group_data = data[group_class.name]
+                logging.debug("Load options group %s" % group_class.identifier)
+                group_data = data[group_class.identifier]
                 try:
-                    kwargs[group_class.name] = group_class.load(group_data)
+                    kwargs[group_class.identifier] = group_class.load(group_data)
                 except PluginNotFoundError as error:
-                    kwargs[group_class.name] = group_class.default()
-                    errors.append(OptionsParseError(error.message))
+                    kwargs[group_class.identifier] = group_class.default()
+                    errors.append(OptionsParseError(str(error)))
                 except orm.UnknownObjectTypeError as error:
-                    kwargs[group_class.name] = group_class.default()
-                    errors.append(OptionsParseError(error.message))
+                    kwargs[group_class.identifier] = group_class.default()
+                    errors.append(OptionsParseError(str(error)))
             except KeyError:
-                kwargs[group_class.name] = group_class.default()
-                errors.append(OptionsParseError("%s data not found in file" % group_class.name))
+                kwargs[group_class.identifier] = group_class.default()
+                errors.append(OptionsParseError("%s data not found in file" % group_class.identifier))
 
         result = cls(
             numerics=kwargs[Numerics.identifier], wafer_process=kwargs[WaferProcess.identifier], mask=kwargs[Mask.identifier],
             imaging_tool=kwargs[ImagingTool.identifier], exposure_focus=kwargs[ExposureFocus.identifier],
-            peb=kwargs[PostExposureBake.identifier], development=kwargs[Development.identifier])
+            peb=kwargs[PostExposureBake.identifier], development=kwargs[Development.identifier],
+            metrology=kwargs[Metrology.identifier])
 
         result.couple_with(path)
 
