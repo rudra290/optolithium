@@ -103,7 +103,7 @@ def _is_mask_negative(mask):
 
 def contour_sign(mask, **kwargs):
     image_tonality = kwargs.get("image_tonality")
-    is_image_negative = {IMAGE_NEGATIVE: True, IMAGE_POSITIVE: False}[image_tonality]
+    is_image_negative = {IMAGE_NEGATIVE: True, IMAGE_POSITIVE: False}.get(image_tonality, False)
     return not is_image_negative
 
 
