@@ -1033,15 +1033,13 @@ class Mask(AbstractOptionsBase):
 
         feature = 250.0
         pitch = 800.0
-        height = 800.0
 
         name = "Line %s/%s" % (feature, pitch)
         description = "Binary dense line mask with feature = %s and pitch = %s size" % (feature, pitch)
-        boundary = orm.Geometry.rectangle(-pitch/2.0, -height/2.0, pitch/2.0, height/2.0)
+        boundary = orm.Geometry.rectangle(-pitch/2.0, 0.0, pitch/2.0, 0.0)
         sim_region = boundary.clone()
-        points = [orm.Point(-feature/2.0, -height/2.0), orm.Point(-feature/2.0, height/2.0),
-                  orm.Point(feature/2.0, height/2.0), orm.Point(feature/2.0, -height/2.0)]
-        regions = [orm.Region(region_transmit, 0.0, orm.GeometryShape.Polygon, points)]
+        points = [orm.Point(-feature/2.0, 0.0), orm.Point(feature/2.0, 0.0)]
+        regions = [orm.Region(region_transmit, 0.0, orm.GeometryShape.Rectangle, points)]
         return orm.Mask(name, bg_transmit, 0.0, boundary, sim_region, regions, desc=description)
 
     @classmethod
@@ -1077,6 +1075,65 @@ class Mask(AbstractOptionsBase):
     def convert2core(self):
         container = self.container
         points = oplc.Points2dArray([oplc.Point2d(*p) for p in container.boundary.points])
+
+        # If mask is 1D or invariant along Y/X, reduce to 1D core mask
+        if getattr(container, "dimensions", 2) == 1 and len(container.boundary.points) >= 2:
+            lb = container.boundary.points[0]
+            rt = container.boundary.points[1]
+            if lb.y == rt.y or lb.x == rt.x:
+                boundary = oplc.Box(points, container.background, container.phase)
+                regions = oplc.RegionsArray()
+                for region in container.regions:
+                    if len(region.points) == 2:
+                        pts = oplc.Points2dArray([oplc.Point2d(p.x, p.y) for p in region.points])
+                    else:
+                        xs = [p.x for p in region.points]
+                        ys = [p.y for p in region.points]
+                        if lb.y == rt.y:
+                            pts = oplc.Points2dArray([oplc.Point2d(min(xs), 0.0), oplc.Point2d(max(xs), 0.0)])
+                        else:
+                            pts = oplc.Points2dArray([oplc.Point2d(0.0, min(ys)), oplc.Point2d(0.0, max(ys))])
+                    regions.append(oplc.Region(pts, region.transmittance, region.phase))
+                return oplc.Mask(regions, boundary)
+            elif container.regions:
+                all_span_y = True
+                for region in container.regions:
+                    if len(region.points) < 2:
+                        all_span_y = False
+                        break
+                    y_coords = {round(p.y, 4) for p in region.points}
+                    if not y_coords.issubset({round(lb.y, 4), round(rt.y, 4)}):
+                        all_span_y = False
+                        break
+                if all_span_y:
+                    b_pts = oplc.Points2dArray([oplc.Point2d(lb.x, 0.0), oplc.Point2d(rt.x, 0.0)])
+                    boundary = oplc.Box(b_pts, container.background, container.phase)
+                    regions = oplc.RegionsArray()
+                    for region in container.regions:
+                        xs = [p.x for p in region.points]
+                        pts = oplc.Points2dArray([oplc.Point2d(min(xs), 0.0), oplc.Point2d(max(xs), 0.0)])
+                        regions.append(oplc.Region(pts, region.transmittance, region.phase))
+                    return oplc.Mask(regions, boundary)
+
+                all_span_x = True
+                for region in container.regions:
+                    if len(region.points) < 2:
+                        all_span_x = False
+                        break
+                    x_coords = {round(p.x, 4) for p in region.points}
+                    if not x_coords.issubset({round(lb.x, 4), round(rt.x, 4)}):
+                        all_span_x = False
+                        break
+                if all_span_x:
+                    b_pts = oplc.Points2dArray([oplc.Point2d(0.0, lb.y), oplc.Point2d(0.0, rt.y)])
+                    boundary = oplc.Box(b_pts, container.background, container.phase)
+                    regions = oplc.RegionsArray()
+                    for region in container.regions:
+                        ys = [p.y for p in region.points]
+                        pts = oplc.Points2dArray([oplc.Point2d(0.0, min(ys)), oplc.Point2d(0.0, max(ys))])
+                        regions.append(oplc.Region(pts, region.transmittance, region.phase))
+                    return oplc.Mask(regions, boundary)
+
         boundary = oplc.Box(points, container.background, container.phase)
         regions = oplc.RegionsArray()
         for region in container.regions:
