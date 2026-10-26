@@ -437,7 +437,7 @@ class MainWindow(QtGui.QMainWindow):
             error_box = ExtendedErrorBox(
                 "Options load errors occurred",
                 "During loading given option file %s the errors occurred; default values will be loaded" % path,
-                str("\n").join([error.message for error in errors]))
+                str("\n").join([getattr(error, "message", str(error)) for error in errors]))
             reply = error_box.exec_()
             if reply == error_box.Close:
                 sys.exit(-1)
@@ -445,10 +445,15 @@ class MainWindow(QtGui.QMainWindow):
         for tab in self.tabs.values():
             tab.reset()
 
-        self.statusBar().showMessage("Options has been successfully loaded from %s" % path,
-                                     config.STATUS_BAR_MESSAGE_DURATION)
-
-        logging.info("Options has been successfully loaded from %s" % path)
+        if getattr(self.options, "is_3d", False):
+            self.statusBar().showMessage(
+                "Loaded 3D simulation file from %s. Note: Resist Profile is not supported for 3D masks." % path,
+                config.STATUS_BAR_MESSAGE_DURATION)
+            logging.info("Loaded 3D simulation file from %s (Resist Profile disabled for 3D)" % path)
+        else:
+            self.statusBar().showMessage("Options has been successfully loaded from %s" % path,
+                                         config.STATUS_BAR_MESSAGE_DURATION)
+            logging.info("Options has been successfully loaded from %s" % path)
 
     @QSlot()
     def load_options(self):
