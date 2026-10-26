@@ -577,6 +577,10 @@ class ResistProfileStage(AbstractStage):
         return "Resist Profile"
 
     def _payload(self):
+        if not self.core_options.mask().is_1d():
+            raise ValueError(
+                "Resist Profile simulation is not supported for 3D mask features. "
+                "Only 1D line/space masks are supported for profile extraction.")
         develop_contours = self.pre_stage.calculate()
         develop_time = self.core_options.development()
         resist_profile = oplc.resist_profile(develop_contours, develop_time)
