@@ -733,6 +733,7 @@ def SimulationViewsFactory(graph_class):
             connect(self.__error_log_button.clicked, self.__on_show_error_log)
             connect(self.__simulation_manager.stateChanged, self.__on_simulation_state_changed)
             connect(self.__simulation_manager.busyChanged, self.__on_simulation_busy_changed)
+            connect(self.__options.mask.changed, self.__on_mask_changed)
 
             self._parameters = QMetrologyTable(self, stage.metrics)
 
@@ -791,6 +792,18 @@ def SimulationViewsFactory(graph_class):
         def on_draw_mask_chkbox_toggled(self, state):
             self._graph.draw_mask = state
 
+        @QSlot()
+        def __on_mask_changed(self):
+            self.__refresh_simulation_controls()
+
+        def reset(self):
+            self.__displayed_result = None
+            self.__displayed_metrics_kwargs = None
+            self._graph.clear()
+            self._parameters.clearContents()
+            self._parameters.setRowCount(0)
+            self.__refresh_simulation_controls()
+
         def onSetActive(self):
             self.__refresh_simulation_controls()
             result = self.__simulation_manager.result(self.__stage)
@@ -799,6 +812,9 @@ def SimulationViewsFactory(graph_class):
 
         @QSlot()
         def __on_simulate(self):
+            if self.__stage.name == "Resist Profile" and getattr(self.__options, "is_3d", False):
+                self.__calculation_status.setText("Resist Profile is not supported for 3D masks.")
+                return
             if not self.__simulation_manager.start(self.__stage):
                 self.__calculation_status.setText("Another simulation is already running.")
 
@@ -852,11 +868,29 @@ def SimulationViewsFactory(graph_class):
 
         def __refresh_simulation_controls(self):
             state = self.__simulation_manager.state(self.__stage)
+            is_3d = getattr(self.__options, "is_3d", False)
+            is_profile_stage = (self.__stage.name == "Resist Profile")
+
+            if is_profile_stage and is_3d:
+                self.__simulate_button.setEnabled(False)
+                self.__simulate_button.setToolTip(
+                    "Resist Profile simulation is only supported for 1D line/space masks.\n"
+                    "3D masks cannot generate a 2D resist profile.")
+                self.__calculation_status.setText("Resist Profile is not supported for 3D masks.")
+                self.__calculation_status.setStyleSheet("color: #c62828;")
+                self.__view_results_button.setEnabled(False)
+                self.__error_log_button.setEnabled(bool(self.__simulation_manager.error_log(self.__stage)))
+                return
+
+            self.__simulate_button.setToolTip("")
             self.__simulate_button.setEnabled(not self.__simulation_manager.busy)
             self.__view_results_button.setEnabled(self.__simulation_manager.result(self.__stage) is not None)
             self.__error_log_button.setEnabled(bool(self.__simulation_manager.error_log(self.__stage)))
-            if state == self.__simulation_manager.IDLE and not self.__calculation_status.text():
+            if state == self.__simulation_manager.IDLE and (
+                    not self.__calculation_status.text() or
+                    self.__calculation_status.text() == "Resist Profile is not supported for 3D masks."):
                 self.__calculation_status.setText("Ready to simulate.")
+                self.__calculation_status.setStyleSheet("color: #c62828;")
 
         @show_traceback
         def __show_result(self, data):
