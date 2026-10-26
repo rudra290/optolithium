@@ -762,9 +762,16 @@ def validate_simulation_result(result):
     """Reject missing or structurally empty results before making them viewable."""
     if result is None:
         raise ValueError("The simulation returned no result.")
+    # Resist Profile simulation returns a ResistProfile object with polygon boundaries rather than a 3D values grid
+    if hasattr(result, "polygons"):
+        if result.polygons is None:
+            raise ValueError("The simulation returned no profile polygons.")
+        return
     if not hasattr(result, "values"):
         raise ValueError("The simulation result has no values array.")
     values = result.values
+    if callable(values):
+        return
     shape = getattr(values, "shape", None)
     if values is None or (shape is not None and
                           (len(shape) == 0 or any(size <= 0 for size in shape))):
