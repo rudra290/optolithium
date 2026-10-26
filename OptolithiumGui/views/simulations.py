@@ -25,6 +25,7 @@
 import logging as module_logging
 import optolithiumc as oplc
 
+import numpy as np
 from numpy import rot90, asfortranarray, linspace, round, arange
 from scipy.interpolate import RegularGridInterpolator
 from matplotlib.collections import PathCollection
@@ -362,12 +363,35 @@ class _ResistSimulationsGraphBase(QGraphPlot):
     def _draw_resist_volume(self, resist_volume, **kwargs):
         self.__resist_volume = resist_volume
         if resist_volume.has_x and resist_volume.has_y:
-            if resist_volume.has_z:
-                ax = self._plot3d(resist_volume.x, resist_volume.y, resist_volume.z, resist_volume.values, **kwargs)
+            values = resist_volume.values
+            is_uniform_y = (values.shape[0] == 1) or np.allclose(values, values[0:1, :, :], atol=1e-5)
+            is_uniform_x = (values.shape[1] == 1) or np.allclose(values, values[:, 0:1, :], atol=1e-5)
+            if is_uniform_y and resist_volume.has_z:
+                ax = self._plot2dxz(resist_volume.x, resist_volume.z, values[0, :, :], **kwargs)
+                self._enable_abilities(ax, Ability.xz2d)
+                ax.set_xlabel("X Position (nm)")
+                ax.set_ylabel("Z Position (nm)")
+                return ax
+            elif is_uniform_x and resist_volume.has_z:
+                ax = self._plot2dxz(resist_volume.y, resist_volume.z, values[:, 0, :], **kwargs)
+                self._enable_abilities(ax, Ability.xz2d)
+                ax.set_xlabel("Y Position (nm)")
+                ax.set_ylabel("Z Position (nm)")
+                return ax
+            elif resist_volume.has_z:
+                ax = self._plot3d(resist_volume.x, resist_volume.y, resist_volume.z, values, **kwargs)
                 self._enable_abilities(ax, Ability.p3d)
+                ax.set_xlabel("X Position (nm)")
+                ax.set_ylabel("Y Position (nm)")
+                if hasattr(ax, "set_zlabel"):
+                    ax.set_zlabel("Z Position (nm)")
+                return ax
             else:
-                ax = self._plot2dxy(resist_volume.x, resist_volume.y, resist_volume.values[:, :, 0], **kwargs)
+                ax = self._plot2dxy(resist_volume.x, resist_volume.y, values[:, :, 0], **kwargs)
                 self._enable_abilities(ax, Ability.xy2d)
+                ax.set_xlabel("X Position (nm)")
+                ax.set_ylabel("Y Position (nm)")
+                return ax
         elif resist_volume.has_x:
             if not resist_volume.has_z:
                 ax = self._plot1d(resist_volume.x, resist_volume.values[0, :, 0], **kwargs)
@@ -533,53 +557,47 @@ class _CommonResistSimulationsGraph(_ResistSimulationsGraphBase):
 
     def _plot3d(self, x, y, z, values, **kwargs):
         """
-        This is only for testing not complete yet!!!
+        3D Resist Volume Isosurface rendering with bounded memory and triangle budget.
         """
-        import numpy
-        from matplotlib import cm
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-        from matplotlib.tri import Triangulation
 
         ax = self.add_subplot(projection="3d")
         ax.set_aspect("equal")
 
-        # ax.set_xlabel("X coordinates (nm)")
-        # ax.set_ylabel("Y coordinates (nm)")
-        # ax.set_zlabel("Z coordinates (nm)")
-
         level = kwargs.get("level")
+        if level is None:
+            level = 0.5
         negative = contour_sign(self._options.mask.container.background, **kwargs)
+
+        # Decimate grid for 3D visualization to keep memory bounded and rendering interactive
+        max_nx, max_ny, max_nz = 40, 40, 25
+        step_x = max(1, len(x) // max_nx)
+        step_y = max(1, len(y) // max_ny)
+        step_z = max(1, len(z) // max_nz)
+        x_sub = x[::step_x]
+        y_sub = y[::step_y]
+        z_sub = z[::step_z]
+        values_sub = values[::step_y, ::step_x, ::step_z]
+
         surface = oplc.isosurface(
-            asfortranarray(x), asfortranarray(y), asfortranarray(z[::-1]),
-            asfortranarray(values), level, negative)
+            asfortranarray(x_sub), asfortranarray(y_sub), asfortranarray(z_sub[::-1]),
+            asfortranarray(values_sub), level, negative)
 
-        # logging.info("X = %s, Y = %s, Z = %s" % (surface.x, surface.y, surface.z))
+        triangles = surface.triangles
+        # Bound the maximum number of triangles for matplotlib Poly3DCollection
+        max_triangles = 6000
+        if len(triangles) > max_triangles:
+            stride = len(triangles) // max_triangles + 1
+            triangles = triangles[::stride]
 
-        # ax.plot_trisurf(
-        #     surface.x, surface.y, surface.z,
-        #     shade=True, color=RESIST_FILL_COLOR, linewidth=0.1, edgecolor="white")
-        #
-        # vx = max(x) - min(x)
-        # vy = max(y) - min(y)
-        # vz = max(z) - min(z)
-        # max_v = max(vx, vy, vz)
-        # ax.pbaspect = [vx / max_v, vy / max_v, vz / max_v]
-        # ax.auto_scale_xyz(x, y, z, True)
+        faces = [
+            [(t.a.x, t.a.y, t.a.z),
+             (t.b.x, t.b.y, t.b.z),
+             (t.c.x, t.c.y, t.c.z)]
+            for t in triangles
+        ]
 
-        normals = []
-        faces = []
-        for triangle in surface.triangles:
-            face = numpy.asarray([
-                (triangle.a.x, triangle.a.y, triangle.a.z),
-                (triangle.b.x, triangle.b.y, triangle.b.z),
-                (triangle.c.x, triangle.c.y, triangle.c.z)])
-            faces.append(face)
-            n = triangle.normal()
-            normals.append(numpy.asarray([n.x, n.y, n.z]))
-
-        # colset = ax._shade_colors(RESIST_FILL_COLOR, normals)
-        polyc = Poly3DCollection(faces, facecolors=RESIST_FILL_COLOR, linewidths=0.01, edgecolors="black")
-        # polyc.set_facecolors(colset)
+        polyc = Poly3DCollection(faces, facecolors=RESIST_FILL_COLOR, linewidths=0.1, edgecolors="gray", alpha=0.85)
         ax.add_collection(polyc)
         max_x, min_x = max(x), min(x)
         max_y, min_y = max(y), min(y)
@@ -588,7 +606,8 @@ class _CommonResistSimulationsGraph(_ResistSimulationsGraphBase):
         vy = max_y - min_y
         vz = max_z - min_z
         max_v = max(vx, vy, vz)
-        ax.pbaspect = [vx / max_v, vy / max_v, vz / max_v]
+        if max_v > 0:
+            ax.pbaspect = [vx / max_v, vy / max_v, vz / max_v]
         ax.auto_scale_xyz([min_x, max_x], [min_y, max_y], [min_z, max_z], True)
 
         return ax
