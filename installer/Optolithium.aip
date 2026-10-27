@@ -13,7 +13,7 @@
     <ROW Property="ProductCode" Value="1033:{AAF3E491-63F0-4D06-AA69-2EBA121828AC} " Type="16"/>
     <ROW Property="ProductLanguage" Value="1033"/>
     <ROW Property="ProductName" Value="Optolithium"/>
-    <ROW Property="ProductVersion" Value="0.3.0" Type="32"/>
+    <ROW Property="ProductVersion" Value="0.4.0" Type="32"/>
     <ROW Property="REBOOT" MultiBuildValue="DefaultBuild:ReallySuppress"/>
     <ROW Property="SecureCustomProperties" Value="OLDPRODUCTS;AI_NEWERPRODUCTFOUND"/>
     <ROW Property="UpgradeCode" Value="{4B614687-8FB0-4599-9BD8-2CC3EC563821}"/>

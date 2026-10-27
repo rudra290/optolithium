@@ -66,6 +66,18 @@ for arg in "$@"; do
             BUILD_MSI=true
             USER_SELECTED_TARGET=true
             ;;
+        --bump-patch)
+            python3 "$SCRIPT_DIR/tools/version_manager.py" bump patch
+            ;;
+        --bump-minor)
+            python3 "$SCRIPT_DIR/tools/version_manager.py" bump minor
+            ;;
+        --bump-major)
+            python3 "$SCRIPT_DIR/tools/version_manager.py" bump major
+            ;;
+        --bump-auto)
+            python3 "$SCRIPT_DIR/tools/version_manager.py" auto
+            ;;
         *)
             EXTRA_ARGS+=("$arg")
             ;;
@@ -77,6 +89,11 @@ if [ "$USER_SELECTED_TARGET" = false ]; then
     BUILD_RPM=true
     BUILD_DEB=true
 fi
+
+CURRENT_VERSION="$(python3 "$SCRIPT_DIR/tools/version_manager.py" get 2>/dev/null || echo "0.3.0")"
+echo "=========================================================="
+echo " Optolithium Multi-Package Builder (Version: $CURRENT_VERSION)"
+echo "=========================================================="
 
 if [ -n "$SUDO_USER" ] && [ "$EUID" -eq 0 ]; then
     echo "Note: Running under sudo. (Packaging does not require root privileges.)"
