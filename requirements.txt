@@ -1,0 +1,9 @@
+PyQt5
+numpy
+scipy
+matplotlib
+sqlalchemy<2
+psutil
+python-magic
+python-gdsii
+bson
