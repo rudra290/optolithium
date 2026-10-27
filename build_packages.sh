@@ -78,12 +78,16 @@ if [ "$USER_SELECTED_TARGET" = false ]; then
     BUILD_DEB=true
 fi
 
+if [ -n "$SUDO_USER" ] && [ "$EUID" -eq 0 ]; then
+    echo "Note: Running under sudo. (Packaging does not require root privileges.)"
+fi
+
 if [ "$BUILD_RPM" = true ]; then
     echo "=========================================================="
     echo " Step: Building .rpm Package & DNF Repository"
     echo "=========================================================="
-    "$SCRIPT_DIR/packaging/build_rpm.sh" "${EXTRA_ARGS[@]}"
-    "$SCRIPT_DIR/packaging/create_dnf_repo.sh"
+    bash "$SCRIPT_DIR/packaging/build_rpm.sh" "${EXTRA_ARGS[@]}"
+    bash "$SCRIPT_DIR/packaging/create_dnf_repo.sh"
     echo ""
 fi
 
@@ -91,8 +95,8 @@ if [ "$BUILD_DEB" = true ]; then
     echo "=========================================================="
     echo " Step: Building .deb Package & APT Repository"
     echo "=========================================================="
-    "$SCRIPT_DIR/packaging/build_deb.sh" "${EXTRA_ARGS[@]}"
-    "$SCRIPT_DIR/packaging/create_apt_repo.sh"
+    bash "$SCRIPT_DIR/packaging/build_deb.sh" "${EXTRA_ARGS[@]}"
+    bash "$SCRIPT_DIR/packaging/create_apt_repo.sh"
     echo ""
 fi
 
@@ -100,7 +104,7 @@ if [ "$BUILD_MSI" = true ]; then
     echo "=========================================================="
     echo " Step: Preparing Windows .msi Package"
     echo "=========================================================="
-    "$SCRIPT_DIR/packaging/build_msi.sh" "${EXTRA_ARGS[@]}"
+    bash "$SCRIPT_DIR/packaging/build_msi.sh" "${EXTRA_ARGS[@]}"
     echo ""
 fi
 
@@ -114,7 +118,7 @@ if [ "$BUILD_NUITKA" = true ]; then
     else
         NUITKA_FLAGS+=(--standalone)
     fi
-    "$SCRIPT_DIR/packaging/build_nuitka.sh" "${NUITKA_FLAGS[@]}"
+    bash "$SCRIPT_DIR/packaging/build_nuitka.sh" "${NUITKA_FLAGS[@]}"
     echo ""
 fi
 
@@ -145,4 +149,10 @@ if [ "$BUILD_MSI" = true ]; then
     ls -lh "$SCRIPT_DIR/dist/msi"/*.msi 2>/dev/null || true
     ls -d "$SCRIPT_DIR/dist/msi-staging" 2>/dev/null || true
 fi
+
+# If invoked via sudo, restore ownership of generated dist directory to the invoking user
+if [ -n "$SUDO_USER" ] && [ "$EUID" -eq 0 ] && [ -d "$SCRIPT_DIR/dist" ]; then
+    chown -R "$SUDO_USER:" "$SCRIPT_DIR/dist"
+fi
+
 echo "=========================================================="
