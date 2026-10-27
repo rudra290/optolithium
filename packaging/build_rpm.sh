@@ -7,7 +7,28 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SPEC_FILE="$REPO_DIR/packaging/optolithium.spec"
 OUTPUT_DIR="$REPO_DIR/dist/rpm"
-DEFAULT_VENV="${OPTOLITHIUM_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
+# Resolve Python virtual environment path
+DEFAULT_VENV="${OPTOLITHIUM_VENV:-}"
+if [ -z "$DEFAULT_VENV" ] || [ ! -d "$DEFAULT_VENV" ]; then
+    CANDIDATES=(
+        "${OPTOLITHIUM_VENV:-}"
+        "${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv"
+        "$REPO_DIR/.venv"
+    )
+    if [ -n "$SUDO_USER" ]; then
+        SUDO_HOME="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$SUDO_HOME" ]; then
+            CANDIDATES+=("$SUDO_HOME/.cache/optolithium/venv")
+        fi
+    fi
+    for cand in "${CANDIDATES[@]}"; do
+        if [ -n "$cand" ] && [ -d "$cand" ]; then
+            DEFAULT_VENV="$cand"
+            break
+        fi
+    done
+fi
+DEFAULT_VENV="${DEFAULT_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
 
 USE_NUITKA=false
 BUNDLE_VENV=true
@@ -140,7 +161,7 @@ if [ "$USE_NUITKA" = true ]; then
     ln -sf /opt/optolithium/optolithium "$STAGING/usr/bin/optolithium"
 else
     # 1. Copy application files (excluding Windows binaries, temporary caches, and logs)
-    rsync -a \
+    rsync -a --no-o --no-g \
         --exclude="*.dll" \
         --exclude="*.exe" \
         --exclude="__pycache__" \
@@ -150,6 +171,7 @@ else
         --exclude="icons_sources" \
         --exclude=".vscode" \
         --exclude=".venv" \
+        --exclude="*crash-report*" \
         "$REPO_DIR/OptolithiumGui/" "$INSTALL_APP/"
 
     # 2. Bundle native system libraries (e.g. libfftw3)
@@ -188,7 +210,7 @@ if [ "$BUNDLE_VENV" = true ]; then
         exit 1
     fi
     mkdir -p "$INSTALL_OPT/venv"
-    rsync -a \
+    rsync -a --no-o --no-g \
         --exclude="docs" \
         --exclude="doc" \
         --exclude="__pycache__" \
