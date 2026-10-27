@@ -8,7 +8,28 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GUI_DIR="$REPO_DIR/OptolithiumGui"
 OUTPUT_DIR="$REPO_DIR/dist/nuitka"
-DEFAULT_VENV="${OPTOLITHIUM_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
+# Resolve Python virtual environment path
+DEFAULT_VENV="${OPTOLITHIUM_VENV:-}"
+if [ -z "$DEFAULT_VENV" ] || [ ! -d "$DEFAULT_VENV" ]; then
+    CANDIDATES=(
+        "${OPTOLITHIUM_VENV:-}"
+        "${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv"
+        "$REPO_DIR/.venv"
+    )
+    if [ -n "$SUDO_USER" ]; then
+        SUDO_HOME="$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)"
+        if [ -n "$SUDO_HOME" ]; then
+            CANDIDATES+=("$SUDO_HOME/.cache/optolithium/venv")
+        fi
+    fi
+    for cand in "${CANDIDATES[@]}"; do
+        if [ -n "$cand" ] && [ -d "$cand" ]; then
+            DEFAULT_VENV="$cand"
+            break
+        fi
+    done
+fi
+DEFAULT_VENV="${DEFAULT_VENV:-${XDG_CACHE_HOME:-$HOME/.cache}/optolithium/venv}"
 
 MODE="standalone"   # "standalone" (directory) or "onefile" (single executable)
 FORCE_REBUILD=false
