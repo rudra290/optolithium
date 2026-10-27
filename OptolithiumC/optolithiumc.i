@@ -205,22 +205,22 @@ static inline PyObject* SWIG_Python_AppendOutput(PyObject* result, PyObject* obj
 %exception {
     try {
         $action
-    } catch (std::length_error error) {
+    } catch (const std::length_error& error) {
         PyErr_SetString(PyExc_IndexError, error.what());
         SWIG_fail;
-    } catch (std::out_of_range error) {
+    } catch (const std::out_of_range& error) {
         PyErr_SetString(PyExc_IndexError, error.what());
         SWIG_fail;
-    } catch (std::invalid_argument error) {
+    } catch (const std::invalid_argument& error) {
         PyErr_SetString(PyExc_ValueError, error.what());
         SWIG_fail;
-    } catch (std::range_error error) {
+    } catch (const std::range_error& error) {
         PyErr_SetString(PyExc_IndexError, error.what());
         SWIG_fail;
-    } catch (std::runtime_error error) {
+    } catch (const std::runtime_error& error) {
         PyErr_SetString(PyExc_RuntimeError, error.what());
         SWIG_fail;
-    } catch (std::exception error) {
+    } catch (const std::exception& error) {
         PyErr_SetString(PyExc_Exception, error.what());
         SWIG_fail;    
     }
