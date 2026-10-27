@@ -45,10 +45,12 @@
 #define PyString_AsString(op) PyUnicode_AsUTF8(op)
 #endif
 
+#if defined(SWIG_VERSION) && (SWIG_VERSION >= 0x040300)
 #ifdef __cplusplus
 static inline PyObject* SWIG_Python_AppendOutput(PyObject* result, PyObject* obj) {
     return SWIG_Python_AppendOutput(result, obj, 0);
 }
+#endif
 #endif
 
     int load_ctypes_module(void) {
