@@ -27,6 +27,11 @@ rm -rf "$REPO_DIR/OptolithiumC/build"
 mkdir -p "$REPO_DIR/OptolithiumC/build"
 cmake -B "$REPO_DIR/OptolithiumC/build" -S "$REPO_DIR/OptolithiumC" \
     -DCMAKE_BUILD_TYPE=Release \
+    -DPython3_ROOT_DIR="$VENV_DIR" \
+    -DPython3_FIND_VIRTUALENV=FIRST \
+    -DPython3_EXECUTABLE="$VENV_PYTHON" \
+    -DPython3_INCLUDE_DIR="$PYTHON_INCLUDE" \
+    -DPython3_NumPy_INCLUDE_DIR="$NUMPY_INCLUDE" \
     -DPython_EXECUTABLE="$VENV_PYTHON" \
     -DPython_INCLUDE_DIR="$PYTHON_INCLUDE" \
     -DPython_NumPy_INCLUDE_DIR="$NUMPY_INCLUDE"
