@@ -75,9 +75,7 @@ static inline PyObject* SWIG_Python_AppendOutput(PyObject* result, PyObject* obj
 %}
 
 %init {
-    if (load_ctypes_module() == -1) {
-        return -1;
-    }
+    load_ctypes_module();
 }
 
 /* ---------------------------------------------------------------------------- */

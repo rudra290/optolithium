@@ -14,15 +14,9 @@
 // objects such that they can be used as base objects of numpy arrays
 //
 
-#if PY_MAJOR_VERSION >= 3
 #define INIT_ARMA_CAPSULE( MatT )  \
     ArmaCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
-    if (PyType_Ready(&ArmaCapsulePyType< MatT >::object) < 0) return -1;
-#else
-#define INIT_ARMA_CAPSULE( MatT )  \
-    ArmaCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
-    if (PyType_Ready(&ArmaCapsulePyType< MatT >::object) < 0) return;
-#endif
+    (void)PyType_Ready(&ArmaCapsulePyType< MatT >::object);
 
 template< typename MatT >
 struct ArmaCapsule {
@@ -111,15 +105,9 @@ template< typename MatT > PyTypeObject ArmaCapsulePyType<MatT>::object = { \
 
 #if defined( ARMANPY_SHARED_PTR )
 
-#if PY_MAJOR_VERSION >= 3
 #define INIT_ARMA_BSPTR_CAPSULE( MatT )  \
     ArmaBsptrCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
-    if (PyType_Ready(&ArmaBsptrCapsulePyType< MatT >::object) < 0) return -1;
-#else
-#define INIT_ARMA_BSPTR_CAPSULE( MatT )  \
-    ArmaBsptrCapsulePyType< MatT >::object.tp_new = PyType_GenericNew; \
-    if (PyType_Ready(&ArmaBsptrCapsulePyType< MatT >::object) < 0) return;
-#endif
+    (void)PyType_Ready(&ArmaBsptrCapsulePyType< MatT >::object);
 
 template< typename MatT >
 struct ArmaBsptrCapsule {
