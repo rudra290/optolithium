@@ -123,7 +123,8 @@ def main():
 
     # Silence SQLAlchemy deprecation / schema overlap warnings on console
     try:
-        from sqlalchemy import exc as sa_exc
+        import importlib
+        sa_exc = importlib.import_module("sqlalchemy.exc")
         warnings.filterwarnings("ignore", category=sa_exc.SAWarning)
     except ImportError:
         pass
