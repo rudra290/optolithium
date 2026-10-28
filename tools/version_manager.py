@@ -28,13 +28,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INFO_PY = REPO_ROOT / "OptolithiumGui" / "info.py"
 AIP_FILE = REPO_ROOT / "installer" / "Optolithium.aip"
 SPEC_FILE = REPO_ROOT / "packaging" / "optolithium.spec"
+MAN_FILE = REPO_ROOT / "packaging" / "optolithium.1"
 GITHOOKS_DIR = REPO_ROOT / ".githooks"
 GIT_HOOK_PRE_COMMIT = GITHOOKS_DIR / "pre-commit"
 
 # Code file extensions that warrant an automated version bump
 CODE_EXTENSIONS = {
     ".py", ".c", ".cpp", ".cxx", ".cc", ".h", ".hpp", ".hxx",
-    ".i", ".sh", ".ui", ".qrc", ".json", ".spec", ".wxs", ".cmake"
+    ".i", ".sh", ".ui", ".qrc", ".json", ".spec", ".wxs", ".cmake", ".1"
 }
 
 # Directories considered source code
@@ -117,6 +118,16 @@ def sync_version_to_files(new_version: str):
             content
         )
         SPEC_FILE.write_text(updated, encoding="utf-8")
+
+    # 4. packaging/optolithium.1
+    if MAN_FILE.exists():
+        content = MAN_FILE.read_text(encoding="utf-8")
+        updated = re.sub(
+            r'(\.TH\s+OPTOLITHIUM\s+1\s+"[^"]*"\s+"Optolithium\s+)[^"]+(")',
+            f'\\g<1>{new_version}\\g<2>',
+            content
+        )
+        MAN_FILE.write_text(updated, encoding="utf-8")
 
 
 def run_git(args: list, check: bool = True) -> str:

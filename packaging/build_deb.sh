@@ -198,7 +198,12 @@ cp -f "$ICON_SRC" "$STAGING/usr/share/icons/hicolor/128x128/apps/optolithium.png
 cp -f "$ICON_SRC" "$STAGING/usr/share/pixmaps/optolithium.png"
 chmod 644 "$STAGING/usr/share/icons/hicolor/128x128/apps/optolithium.png" "$STAGING/usr/share/pixmaps/optolithium.png"
 
-# 7. Bundle complete venv if requested (default: standalone)
+# 7. Man page
+mkdir -p "$STAGING/usr/share/man/man1"
+gzip -9 -n -c "$REPO_DIR/packaging/optolithium.1" > "$STAGING/usr/share/man/man1/optolithium.1.gz"
+chmod 644 "$STAGING/usr/share/man/man1/optolithium.1.gz"
+
+# 8. Bundle complete venv if requested (default: standalone)
 if [ "$BUNDLE_VENV" = true ]; then
     echo "==> Bundling Python runtime environment for zero-dependency execution..."
     if [ ! -d "$DEFAULT_VENV" ]; then
