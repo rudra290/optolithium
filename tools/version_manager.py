@@ -326,6 +326,8 @@ def pre_commit_hook():
         files_to_stage.append("installer/Optolithium.aip")
     if SPEC_FILE.exists():
         files_to_stage.append("packaging/optolithium.spec")
+    if MAN_FILE.exists():
+        files_to_stage.append("packaging/optolithium.1")
 
     run_git(["add"] + files_to_stage, check=False)
     print(f"[version-control] Automated version bump: {current} -> {new_version} ({bump_type})")
