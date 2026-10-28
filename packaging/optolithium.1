@@ -1,0 +1,119 @@
+.TH OPTOLITHIUM 1 "October 2026" "Optolithium 0.5.0" "User Commands"
+.SH NAME
+optolithium \- optical lithography simulation and modeling software suite
+.SH SYNOPSIS
+.B optolithium
+[\fB\-h\fR|\fB\-\-help\fR]
+[\fB\-v\fR|\fB\-V\fR|\fB\-\-version\fR]
+[\fB\-\-log\-level\fR \fILEVEL\fR]
+[\fB\-d\fR|\fB\-\-debug\fR]
+[\fB\-q\fR|\fB\-\-quiet\fR]
+[\fB\-\-style\fR \fISTYLE\fR]
+[\fB\-\-platform\fR \fIPLATFORM\fR]
+[\fB\-\-maximized\fR|\fB\-\-fullscreen\fR]
+[\fIFILE\fR]
+.SH DESCRIPTION
+.B Optolithium
+is an advanced optical lithography simulation and modeling suite for semiconductor microfabrication research and education.
+It provides rigorous physical optical models including:
+.IP \(bu 2
+Source illumination modeling (coherent, annular, quadrupole, dipole, custom source shapes)
+.IP \(bu 2
+Pupil filtering and polarization effects
+.IP \(bu 2
+Partial coherent imaging and diffraction pattern calculation (Hopkins and Abbe formulations)
+.IP \(bu 2
+High\-NA vector imaging in thin and thick resist films
+.IP \(bu 2
+Photoactive compound (PAC) concentration latent image calculation (Dill ABC parameters)
+.IP \(bu 2
+Post\-exposure bake (PEB) thermal diffusion simulation
+.IP \(bu 2
+Resist development rate modeling (Mack, enhanced Mack, notch, and custom models) using fast marching eikonal solvers
+.IP \(bu 2
+Metrology analysis: critical dimension (CD), process window (Bossung curves, ED windows), exposure latitude, and depth of focus (DOF)
+.PP
+By default, running
+.B optolithium
+launches the graphical user interface. If an options file
+(\fIFILE\fR)
+is provided, it is loaded upon startup.
+.SH POSITIONAL ARGUMENTS
+.TP
+\fIFILE\fR
+Path to an Optolithium simulation options file (\fI*.opl\fR) to load on startup.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Display command\-line help summary and exit.
+.TP
+\fB\-v\fR, \fB\-V\fR, \fB\-\-version\fR
+Display application version number and exit.
+.TP
+\fB\-\-log\-level\fR \fILEVEL\fR
+Set console logging verbosity level. Available levels:
+\fBDEBUG\fR, \fBINFO\fR, \fBWARNING\fR, \fBERROR\fR, \fBCRITICAL\fR.
+Default is \fBINFO\fR.
+.TP
+\fB\-d\fR, \fB\-\-debug\fR
+Enable verbose debug logging (equivalent to \fB\-\-log\-level DEBUG\fR).
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Suppress informational log messages, displaying only warnings and errors (equivalent to \fB\-\-log\-level WARNING\fR).
+.TP
+\fB\-\-style\fR \fISTYLE\fR
+Override Qt GUI application style (e.g., \fIFusion\fR, \fIWindows\fR).
+.TP
+\fB\-\-platform\fR \fIPLATFORM\fR
+Specify Qt GUI platform plugin (e.g., \fIxcb\fR, \fIwayland\fR, \fIoffscreen\fR).
+.TP
+\fB\-\-maximized\fR
+Start the main application window maximized.
+.TP
+\fB\-\-fullscreen\fR
+Start the main application window in full screen mode.
+.SH ENVIRONMENT
+.TP
+\fBOPTOLITHIUM_HOME\fR
+Directory where Optolithium stores user configuration, material databases, and cache. Defaults to \fI~/.Optolithium\fR.
+.TP
+\fBOPTOLITHIUM_VENV\fR
+Path to an external Python virtual environment to use instead of the bundled runtime.
+.TP
+\fBQT_QPA_PLATFORM\fR
+Overrides the default Qt platform abstraction plugin (e.g., set to \fIoffscreen\fR for headless test runs).
+.SH FILES
+.TP
+\fI~/.Optolithium/config.json\fR
+User preferences and application configuration file.
+.TP
+\fI~/.Optolithium/OptolithiumDatabase.db\fR
+SQLite database containing material refractive indices, resist formulations, and simulation presets.
+.TP
+\fI~/.Optolithium/map.json\fR
+GDSII layer transmittance and phase mapping configuration.
+.SH EXAMPLES
+.TP
+Start Optolithium GUI:
+.B optolithium
+.TP
+Open an existing simulation project:
+.B optolithium my_simulation.opl
+.TP
+Print version:
+.B optolithium \-\-version
+.TP
+Run with debug logging:
+.B optolithium \-\-debug
+.SH AUTHORS
+Written by Alexei Gladkikh.
+Maintained by the Optolithium project contributors.
+.SH REPORTING BUGS
+Report bugs and feature requests to:
+\fIhttps://bitbucket.org/gladkikhalexei/lithography/issues\fR
+.SH COPYRIGHT
+Copyright \(co 2015 Alexei Gladkikh.
+License: GNU General Public License v2 or later (GPL\-2.0\-or\-later).
+This is free software: you are free to change and redistribute it under the conditions of the license.
+There is NO WARRANTY, to the extent permitted by law.
+
