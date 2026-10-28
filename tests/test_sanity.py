@@ -79,6 +79,68 @@ def test_gui_core_modules():
     print("    GUI core modules imported and initialized successfully.")
 
 
+def test_cli_interface():
+    print("--> Testing CLI flags (--version, -v, --help, invalid args)...")
+    import subprocess
+    import info
+
+    py_bin = sys.executable
+    main_py = str(GUI_DIR / "main.py")
+
+    # 1. Test --version
+    res = subprocess.run([py_bin, main_py, "--version"], capture_output=True, text=True)
+    assert res.returncode == 0, f"--version failed with code {res.returncode}: {res.stderr}"
+    assert info.__version__ in res.stdout, f"--version did not output version: {res.stdout}"
+    assert "Traceback" not in res.stderr and "FileNotFoundError" not in res.stderr
+    print(f"    --version output: {res.stdout.strip()}")
+
+    # 2. Test -v and -V
+    for flag in ["-v", "-V"]:
+        res = subprocess.run([py_bin, main_py, flag], capture_output=True, text=True)
+        assert res.returncode == 0, f"{flag} failed with code {res.returncode}"
+        assert info.__version__ in res.stdout
+
+    # 3. Test --help and -h
+    for flag in ["--help", "-h"]:
+        res = subprocess.run([py_bin, main_py, flag], capture_output=True, text=True)
+        assert res.returncode == 0, f"{flag} failed with code {res.returncode}"
+        assert "usage: optolithium" in res.stdout
+        assert "--version" in res.stdout
+
+    # 4. Test unrecognized argument (should exit code 2 with clean message, not crash)
+    res = subprocess.run([py_bin, main_py, "--invalid-flag"], capture_output=True, text=True)
+    assert res.returncode == 2, f"Expected returncode 2 for invalid arg, got {res.returncode}"
+    assert "unrecognized arguments" in res.stderr
+    assert "Traceback" not in res.stderr
+
+    # 5. Test nonexistent file (should exit code 2 with clean message, not crash)
+    res = subprocess.run([py_bin, main_py, "non_existent_file.opl"], capture_output=True, text=True)
+    assert res.returncode == 2, f"Expected returncode 2 for missing file, got {res.returncode}"
+    assert "Options file not found" in res.stderr
+    assert "Traceback" not in res.stderr
+
+    print("    CLI interface and error handling verified successfully.")
+
+
+def test_man_page():
+    print("--> Testing man page syntax and packaging...")
+    man_file = REPO_ROOT / "packaging" / "optolithium.1"
+    assert man_file.exists(), f"Man page missing: {man_file}"
+    content = man_file.read_text(encoding="utf-8")
+    assert ".TH OPTOLITHIUM 1" in content
+    assert "SYNOPSIS" in content
+    assert "OPTIONS" in content
+
+    # Test man page formatting with groff/man if available
+    import subprocess
+    import shutil
+    if shutil.which("man"):
+        res = subprocess.run(["man", "-l", str(man_file)], capture_output=True, text=True)
+        assert res.returncode == 0, f"man -l failed: {res.stderr}"
+        assert "optolithium" in res.stdout.lower()
+        print("    Man page formatted and validated successfully.")
+
+
 def main():
     print("==================================================")
     print(" Running Optolithium Sanity Tests")
@@ -88,6 +150,8 @@ def main():
     test_clipper()
     test_plugins_installed()
     test_gui_core_modules()
+    test_cli_interface()
+    test_man_page()
     print("==================================================")
     print(" All Optolithium Sanity Tests Passed Successfully!")
     print("==================================================")
