@@ -1,5 +1,5 @@
 Name:           optolithium
-Version:        %{?pkg_version}%{!?pkg_version:0.4.0}
+Version:        %{?pkg_version}%{!?pkg_version:0.5.0}
 Release:        %{?pkg_release}%{!?pkg_release:1}%{?dist}
 Summary:        Modern Optical Lithography Simulation Suite
 License:        GPL-2.0-or-later
@@ -59,6 +59,7 @@ fi
 /usr/share/applications/optolithium.desktop
 /usr/share/icons/hicolor/128x128/apps/optolithium.png
 /usr/share/pixmaps/optolithium.png
+/usr/share/man/man1/optolithium.1*
 /opt/optolithium
 
 %changelog

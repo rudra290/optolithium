@@ -160,7 +160,7 @@ class StatusBar(QtGui.QStatusBar):
 
 class MainWindow(QtGui.QMainWindow):
 
-    def __init__(self):
+    def __init__(self, options_file=None, maximized=False, fullscreen=False):
         QtGui.QMainWindow.__init__(self)
         
         gui_dir = getattr(config, "BASE_DIR", os.path.dirname(os.path.abspath(__file__)))
@@ -233,12 +233,16 @@ class MainWindow(QtGui.QMainWindow):
 
         logging.info("Configuration done")
 
-        logging.info("Loading options")
-        if len(sys.argv) > 1:
-            path = sys.argv[1]
-            self._open_options(path)
+        if options_file:
+            logging.info("Loading options from: %s" % options_file)
+            self._open_options(options_file)
 
-        self.show()
+        if fullscreen:
+            self.showFullScreen()
+        elif maximized:
+            self.showMaximized()
+        else:
+            self.show()
 
     # noinspection PyPep8Naming
     @QSlot()
@@ -431,6 +435,11 @@ class MainWindow(QtGui.QMainWindow):
     def _open_options(self, path):
         if not path:
             return
+        if not os.path.exists(path):
+            logging.error("Options file not found: %s" % path)
+            from views.common import error_msg
+            error_msg(self, "Options file not found:\n%s" % path)
+            return
         try:
             self.options.open(path)
         except options.OptionsLoadErrors as errors:
@@ -441,6 +450,11 @@ class MainWindow(QtGui.QMainWindow):
             reply = error_box.exec_()
             if reply == error_box.Close:
                 sys.exit(-1)
+        except Exception as error:
+            logging.error("Failed to load options file %s: %s" % (path, error))
+            from views.common import error_msg
+            error_msg(self, "Could not open options file %s:\n%s" % (path, error))
+            return
 
         for tab in self.tabs.values():
             tab.reset()
