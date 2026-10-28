@@ -11,8 +11,9 @@ if [ ! -d "$VENV_DIR" ]; then
     echo "Creating virtual environment at $VENV_DIR..."
     "$PYTHON_BIN" -m venv "$VENV_DIR"
     "$VENV_DIR/bin/pip" install --upgrade pip
-    "$VENV_DIR/bin/pip" install PyQt5 numpy scipy matplotlib "sqlalchemy<2" psutil python-magic python-gdsii bson
 fi
+
+"$VENV_DIR/bin/python" -m pip install -r "$REPO_DIR/requirements.txt"
 
 VENV_PYTHON="$VENV_DIR/bin/python"
 

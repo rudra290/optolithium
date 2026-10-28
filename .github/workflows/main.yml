@@ -57,6 +57,11 @@ jobs:
           chmod +x rebuild_linux.sh
           bash rebuild_linux.sh
 
+      - name: Verify SQLAlchemy Dependency
+        run: |
+          export VENV_PYTHON="${HOME}/.cache/optolithium/venv/bin/python"
+          $VENV_PYTHON -c "import sqlalchemy.exc; print('SQLAlchemy', sqlalchemy.__version__)"
+
       - name: Run Sanity Test Suite
         run: |
           export VENV_PYTHON="${HOME}/.cache/optolithium/venv/bin/python"
