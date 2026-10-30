@@ -103,8 +103,12 @@ def parse_arguments(args=None):
     parsed_args = parser.parse_args(args)
 
     # Validate options file if provided
-    if parsed_args.file and not os.path.exists(parsed_args.file):
-        parser.error("Options file not found: '%s'" % parsed_args.file)
+    if parsed_args.file:
+        launch_cwd = os.environ.get("OPTOLITHIUM_LAUNCH_CWD")
+        if launch_cwd and not os.path.isabs(parsed_args.file):
+            parsed_args.file = os.path.join(launch_cwd, parsed_args.file)
+        if not os.path.exists(parsed_args.file):
+            parser.error("Options file not found: '%s'" % parsed_args.file)
 
     return parsed_args
 
