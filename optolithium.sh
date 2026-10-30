@@ -13,5 +13,6 @@ if [ ! -f "$VENV_DIR/bin/python" ]; then
 fi
 
 export PYTHONPATH="$GUI_DIR:$PYTHONPATH"
+export OPTOLITHIUM_LAUNCH_CWD="$PWD"
 cd "$GUI_DIR"
 exec "$VENV_DIR/bin/python" "$GUI_DIR/main.py" "$@"
