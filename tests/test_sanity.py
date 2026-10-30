@@ -119,6 +119,27 @@ def test_cli_interface():
     assert "Options file not found" in res.stderr
     assert "Traceback" not in res.stderr
 
+    # Relative paths passed through launchers must remain relative to the caller's directory.
+    import tempfile
+    import main
+
+    original_cwd = os.getcwd()
+    previous_launch_cwd = os.environ.get("OPTOLITHIUM_LAUNCH_CWD")
+    try:
+        with tempfile.TemporaryDirectory() as launch_cwd:
+            options_file = Path(launch_cwd) / "standing-waves.opl"
+            options_file.touch()
+            os.chdir(GUI_DIR)
+            os.environ["OPTOLITHIUM_LAUNCH_CWD"] = launch_cwd
+            parsed = main.parse_arguments(["standing-waves.opl"])
+            assert parsed.file == str(options_file)
+    finally:
+        os.chdir(original_cwd)
+        if previous_launch_cwd is None:
+            os.environ.pop("OPTOLITHIUM_LAUNCH_CWD", None)
+        else:
+            os.environ["OPTOLITHIUM_LAUNCH_CWD"] = previous_launch_cwd
+
     print("    CLI interface and error handling verified successfully.")
 
 
