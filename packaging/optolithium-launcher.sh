@@ -82,5 +82,6 @@ for sp in "$VENV_DIR"/lib/python*/site-packages; do
 done
 
 export PYTHONPATH="$APP_DIR:${PYTHONPATH:-}"
+export OPTOLITHIUM_LAUNCH_CWD="$PWD"
 cd "$APP_DIR"
 exec "$PYTHON_BIN" "$APP_DIR/main.py" "$@"

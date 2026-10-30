@@ -1,5 +1,5 @@
 Name:           optolithium
-Version:        %{?pkg_version}%{!?pkg_version:0.6.5}
+Version:        %{?pkg_version}%{!?pkg_version:0.6.6}
 Release:        %{?pkg_release}%{!?pkg_release:1}%{?dist}
 Summary:        Modern Optical Lithography Simulation Suite
 License:        GPL-2.0-or-later
