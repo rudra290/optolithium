@@ -1906,8 +1906,8 @@ class OpticalTransferFunction(object):
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
     __repr__ = _swig_repr
 
-    def __init__(self, imaging_tool, exposure=None, wafer_stack=None):
-        _optolithiumc.OpticalTransferFunction_swiginit(self, _optolithiumc.new_OpticalTransferFunction(imaging_tool, exposure, wafer_stack))
+    def __init__(self, *args):
+        _optolithiumc.OpticalTransferFunction_swiginit(self, _optolithiumc.new_OpticalTransferFunction(*args))
 
     def calc(self, cx, cy, dz=0.0):
         return _optolithiumc.OpticalTransferFunction_calc(self, cx, cy, dz)
@@ -1996,3 +1996,15 @@ class OptolithiumCoreLog(object):
 # Register OptolithiumCoreLog in _optolithiumc:
 _optolithiumc.OptolithiumCoreLog_swigregister(OptolithiumCoreLog)
 
+def _optical_transfer_function_init(self, imaging_tool, exposure=None, wafer_stack=None):
+    if wafer_stack is not None:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool, exposure, wafer_stack)
+    elif exposure is not None:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool, exposure)
+    else:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool)
+    _optolithiumc.OpticalTransferFunction_swiginit(self, native_otf)
+
+
+OpticalTransferFunction.__init__ = _optical_transfer_function_init
+del _optical_transfer_function_init

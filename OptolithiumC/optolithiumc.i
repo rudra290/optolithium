@@ -484,3 +484,18 @@ namespace oplc {
 %include "opl_capi.h"
 %include "opl_sim.h"
 %include "opl_log.h"
+
+%pythoncode %{
+def _optical_transfer_function_init(self, imaging_tool, exposure=None, wafer_stack=None):
+    if wafer_stack is not None:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool, exposure, wafer_stack)
+    elif exposure is not None:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool, exposure)
+    else:
+        native_otf = _optolithiumc.new_OpticalTransferFunction(imaging_tool)
+    _optolithiumc.OpticalTransferFunction_swiginit(self, native_otf)
+
+
+OpticalTransferFunction.__init__ = _optical_transfer_function_init
+del _optical_transfer_function_init
+%}
