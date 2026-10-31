@@ -569,7 +569,7 @@ class QProcessStepDepositPrmConfig(QStackWidgetTab):
         self.__real = self.IndexEdit(self)
         self.__imag = self.IndexEdit(self)
 
-        self.__label = QLabelMulti(self, frmt="Refractive index %.3f+%.3fi @ wavelength %.1f nm")
+        self.__label = QLabelMulti(self, frmt="Refractive index %.3f%+.3fi @ wavelength %.1f nm")
         self.__label.setAlignment(QtCore.Qt.AlignCenter)
 
         self.__layout.addWidget(self.__label)
