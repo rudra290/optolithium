@@ -42,6 +42,38 @@ def test_optolithiumc_core():
     print("    OptolithiumC core types instantiated successfully.")
 
 
+def test_optical_transfer_function_constructors():
+    print("--> Testing OpticalTransferFunction constructor overloads...")
+    import optolithiumc
+
+    imaging_tool = optolithiumc.ImagingTool(None, None, 0.5, 0.8, 4.0, 0.0, 1.0)
+    exposure = optolithiumc.Exposure(0.0, 100.0, 0.0)
+    wafer_stack = optolithiumc.WaferStack()
+
+    one_argument = optolithiumc.OpticalTransferFunction(imaging_tool)
+    two_arguments = optolithiumc.OpticalTransferFunction(imaging_tool, exposure)
+    three_arguments_none = optolithiumc.OpticalTransferFunction(imaging_tool, exposure, None)
+    three_arguments_stack = optolithiumc.OpticalTransferFunction(imaging_tool, exposure, wafer_stack)
+    keyword_arguments = optolithiumc.OpticalTransferFunction(
+        imaging_tool=imaging_tool, exposure=exposure)
+    keyword_stack = optolithiumc.OpticalTransferFunction(
+        imaging_tool=imaging_tool, wafer_stack=wafer_stack)
+
+    assert one_argument.imaging_tool().wavelength == imaging_tool.wavelength
+    assert one_argument.exposure() is None
+    assert one_argument.wafer_stack() is None
+    for instance in (two_arguments, three_arguments_none, three_arguments_stack):
+        assert instance.exposure().focus == exposure.focus
+    assert two_arguments.wafer_stack() is None
+    assert three_arguments_none.wafer_stack() is None
+    assert three_arguments_stack.wafer_stack() is not None
+    assert keyword_arguments.exposure().focus == exposure.focus
+    assert keyword_stack.exposure() is None
+    assert keyword_stack.wafer_stack() is not None
+
+    print("    Positional and keyword constructor forms instantiated successfully.")
+
+
 def test_clipper():
     print("--> Testing Clipper polygon library...")
     import _clipper
@@ -168,6 +200,7 @@ def main():
     print("==================================================")
     test_version_info()
     test_optolithiumc_core()
+    test_optical_transfer_function_constructors()
     test_clipper()
     test_plugins_installed()
     test_gui_core_modules()
