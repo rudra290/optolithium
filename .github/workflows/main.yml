@@ -170,17 +170,25 @@ jobs:
           cat dist/SHA256SUMS.txt
 
           # Publish build report to the GitHub Actions UI Summary page
-          echo "### 📦 Built Package Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "| File | Size |" >> $GITHUB_STEP_SUMMARY
-          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
-          for f in dist/rpm/*.rpm dist/deb/*.deb; do
-            echo "| \`$(basename "$f")\` | $(du -h "$f" \vert{} cut -f1) \vert{}" >> $GITHUB_STEP_SUMMARY
-          done
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### 🔐 SHA256 Checksums" >> $GITHUB_STEP_SUMMARY
-          echo '```text' >> $GITHUB_STEP_SUMMARY
-          cat dist/SHA256SUMS.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### 📦 Built Package Artifacts"
+            echo ""
+            echo "| File | Size (Human) | Exact Bytes |"
+            echo "| :--- | :--- | :--- |"
+            for f in dist/rpm/*.rpm dist/deb/*.deb; do
+              if [ -e "$f" ]; then
+                FILENAME=$(basename "$f")
+                BYTES=$(stat -L -c %s "$f")
+                HUMAN_SIZE=$(numfmt --to=iec-i --suffix=B "$BYTES")
+                echo "| \`$FILENAME\` | **$HUMAN_SIZE** \vert{}$BYTES B |"
+              fi
+            done
+            echo ""
+            echo "#### 🔐 SHA256 Checksums"
+            echo '```text'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Package Artifacts
         uses: actions/upload-artifact@v6
