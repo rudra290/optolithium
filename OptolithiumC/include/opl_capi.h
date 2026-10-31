@@ -920,8 +920,14 @@ namespace oplc {
 
     //	std::map<std::pair<double, double>, arma::cx_double> _cached_data;
     public:
-        OpticalTransferFunction(SharedImagingTool imaging_tool, 
-            SharedExposure exposure=nullptr, SharedWaferStack wafer_stack=nullptr) :
+        OpticalTransferFunction(SharedImagingTool imaging_tool) :
+            OpticalTransferFunction(imaging_tool, SharedExposure(), SharedWaferStack()) { }
+
+        OpticalTransferFunction(SharedImagingTool imaging_tool, SharedExposure exposure) :
+            OpticalTransferFunction(imaging_tool, exposure, SharedWaferStack()) { }
+
+        OpticalTransferFunction(SharedImagingTool imaging_tool, SharedExposure exposure,
+                SharedWaferStack wafer_stack) :
             _imaging_tool(imaging_tool), _exposure(exposure), _wafer_stack(wafer_stack),
             _wavelength(imaging_tool->wavelength), _numeric_aperture(imaging_tool->numeric_aperture) { }
 
